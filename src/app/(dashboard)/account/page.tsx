@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { useAuth, useSessionToken } from "@/components/providers/auth-provider";
+import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { InputWithIcon, PasswordInput } from "@/components/ui/input-with-icon";
 import { Label } from "@/components/ui/label";

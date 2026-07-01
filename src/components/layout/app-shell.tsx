@@ -28,6 +28,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { AppTour } from "@/components/tour/app-tour";
 import { startAppTour } from "@/lib/tour-steps";
 import { CredentialPromptBanner } from "@/components/auth/credential-prompt-banner";
+import { ConfirmLogoutDialog } from "@/components/auth/confirm-logout-dialog";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
@@ -48,6 +49,7 @@ const iconMap = {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const { user, token, logout } = useAuth();
   const router = useRouter();
 
@@ -55,11 +57,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     api.notifications.unreadCount,
     token ? { token } : "skip"
   ) as number | undefined;
-
-  const handleLogout = async () => {
-    await logout();
-    router.push("/login");
-  };
 
   const currentPage = pathname.startsWith("/notifications")
     ? "Notifications"
@@ -70,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider defaultOpen>
       <AppTour />
-      <AppSidebar user={user} onLogout={handleLogout} />
+      <AppSidebar user={user} onLogout={() => setLogoutOpen(true)} />
 
       <SidebarInset className="min-h-svh">
         <header className="safe-top sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-card/80 sm:h-16 sm:gap-4 sm:px-4 lg:px-8">
@@ -162,6 +159,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </SidebarInset>
 
       <NotificationsSheet open={notificationsOpen} onOpenChange={setNotificationsOpen} />
+
+      <ConfirmLogoutDialog
+        open={logoutOpen}
+        onOpenChange={setLogoutOpen}
+        onConfirm={async () => {
+          await logout();
+          router.push("/login");
+        }}
+      />
     </SidebarProvider>
   );
 }

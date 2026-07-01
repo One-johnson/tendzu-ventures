@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useSessionToken } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -27,6 +26,7 @@ import type { SaleRecord, StockStatus } from "@/types";
 import { FileDown, FileSpreadsheet, FileBarChart, Download, Loader2 } from "lucide-react";
 import { RevenueComparisonChart } from "@/components/charts/dashboard-charts";
 import { FadeIn } from "@/components/motion/page-wrapper";
+import { useStickyQueryResult } from "@/hooks/use-sticky-query-result";
 import {
   Sheet,
   SheetContent,
@@ -127,12 +127,11 @@ export default function ReportsPage() {
     | { revenueComparison: { period: string; revenue: number; profit?: number }[] }
     | undefined;
 
-  const salesReportRef = useRef<typeof salesReport>(undefined);
-
-  if (salesReport !== undefined) salesReportRef.current = salesReport;
-
-  const displaySalesReport = salesReport ?? salesReportRef.current;
-  const salesReportRefreshing = salesReport === undefined && salesReportRef.current !== undefined;
+  const {
+    data: displaySalesReport,
+    isRefreshing: salesReportRefreshing,
+    isInitialLoading: salesReportInitialLoading,
+  } = useStickyQueryResult(salesReport);
 
   if (!inventory || !lowStock || !outOfStock || !revenueSummary || !bestSelling || !chartData) {
     return <PageLoader />;
@@ -441,11 +440,11 @@ export default function ReportsPage() {
             )}
           </div>
 
-          {!displaySalesReport ? (
+          {salesReportInitialLoading ? (
             <div className="flex min-h-[240px] items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
             </div>
-          ) : (
+          ) : displaySalesReport ? (
             <div className="relative space-y-4">
               {salesReportRefreshing && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60">
@@ -527,7 +526,7 @@ export default function ReportsPage() {
                 emptyMessage="No sales for selected period"
               />
             </div>
-          )}
+          ) : null}
         </TabsContent>
 
         <TabsContent value="best-selling" className="space-y-4">
