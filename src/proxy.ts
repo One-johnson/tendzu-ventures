@@ -4,7 +4,7 @@ import { SESSION_COOKIE } from "@/lib/constants";
 
 const publicRoutes = ["/login", "/"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const isPublicRoute = publicRoutes.includes(pathname);
