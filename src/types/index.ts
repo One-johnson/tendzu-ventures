@@ -1,12 +1,13 @@
 export type StockStatus = "available" | "low_stock" | "out_of_stock";
 
-export type UserRole = "admin" | "manager" | "viewer";
+export type UserRole = "admin";
 
 export interface SessionUser {
   _id: string;
   email: string;
   name: string;
   role: UserRole;
+  showCredentialPrompt?: boolean;
 }
 
 export interface SaleRecord {
@@ -16,7 +17,9 @@ export interface SaleRecord {
   machineName: string;
   quantity: number;
   unitPrice: number;
+  unitCostPrice?: number;
   totalAmount: number;
+  totalProfit?: number;
   salesperson: string;
   saleDate: number;
   createdAt: number;
@@ -51,10 +54,13 @@ export interface MachineStats {
 export interface RevenueStats {
   todaySales: number;
   todayRevenue: number;
+  todayProfit: number;
   weeklySales: number;
   weeklyRevenue: number;
+  weeklyProfit: number;
   monthlySales: number;
   monthlyRevenue: number;
+  monthlyProfit: number;
 }
 
 export interface Category {
@@ -63,6 +69,7 @@ export interface Category {
   slug: string;
   description?: string;
   createdAt: number;
+  machineCount?: number;
 }
 
 export interface NotificationRecord {
@@ -76,6 +83,7 @@ export interface NotificationRecord {
 
 export interface MachineWithMeta {
   _id: string;
+  customId?: string;
   name: string;
   categoryId: string;
   description?: string;

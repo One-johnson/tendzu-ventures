@@ -1,19 +1,6 @@
 import { mutation } from "./_generated/server";
 import bcrypt from "bcryptjs";
 
-const DEFAULT_CATEGORIES = [
-  "Excavator",
-  "Bulldozer",
-  "Forklift",
-  "Crane",
-  "Loader",
-  "Grader",
-  "Roller",
-  "Dump Truck",
-  "Backhoe",
-  "Compactor",
-];
-
 export const seedDatabase = mutation({
   args: {},
   handler: async (ctx) => {
@@ -26,25 +13,17 @@ export const seedDatabase = mutation({
       return { message: "Database already seeded.", adminEmail: "admin@tendzuventures.com" };
     }
 
-    const passwordHash = await bcrypt.hash("Admin@123", 12);
+    const passwordHash = bcrypt.hashSync("Admin@123", 12);
     await ctx.db.insert("users", {
       email: "admin@tendzuventures.com",
       passwordHash,
       name: "System Administrator",
       role: "admin",
       isActive: true,
+      credentialsCustomized: false,
+      credentialPromptDismissed: false,
       createdAt: Date.now(),
     });
-
-    const categoryIds: Record<string, string> = {};
-    for (const name of DEFAULT_CATEGORIES) {
-      const id = await ctx.db.insert("categories", {
-        name,
-        slug: name.toLowerCase().replace(/\s+/g, "-"),
-        createdAt: Date.now(),
-      });
-      categoryIds[name] = id;
-    }
 
     await ctx.db.insert("settings", {
       key: "default_low_stock_threshold",
@@ -52,109 +31,86 @@ export const seedDatabase = mutation({
       updatedAt: Date.now(),
     });
 
-    const sampleMachines = [
-      {
-        name: "CAT 320 Excavator",
-        category: "Excavator",
-        sku: "EXC-CAT-320",
-        costPrice: 850000,
-        sellingPrice: 1200000,
-        quantity: 3,
-        brand: "Caterpillar",
-        model: "320",
-        year: 2022,
-      },
-      {
-        name: "Komatsu D65 Bulldozer",
-        category: "Bulldozer",
-        sku: "BLD-KOM-D65",
-        costPrice: 720000,
-        sellingPrice: 980000,
-        quantity: 2,
-        brand: "Komatsu",
-        model: "D65",
-        year: 2021,
-      },
-      {
-        name: "Toyota 8FG Forklift",
-        category: "Forklift",
-        sku: "FLK-TOY-8FG",
-        costPrice: 95000,
-        sellingPrice: 145000,
-        quantity: 8,
-        brand: "Toyota",
-        model: "8FG25",
-        year: 2023,
-      },
-      {
-        name: "Liebherr LTM Crane",
-        category: "Crane",
-        sku: "CRN-LIE-LTM",
-        costPrice: 1500000,
-        sellingPrice: 2100000,
-        quantity: 1,
-        brand: "Liebherr",
-        model: "LTM 1100",
-        year: 2020,
-      },
-      {
-        name: "Volvo L120 Loader",
-        category: "Loader",
-        sku: "LDR-VOL-L120",
-        costPrice: 480000,
-        sellingPrice: 650000,
-        quantity: 4,
-        brand: "Volvo",
-        model: "L120H",
-        year: 2022,
-      },
-      {
-        name: "CAT 140M Grader",
-        category: "Grader",
-        sku: "GRD-CAT-140M",
-        costPrice: 520000,
-        sellingPrice: 710000,
-        quantity: 2,
-        brand: "Caterpillar",
-        model: "140M",
-        year: 2021,
-      },
-      {
-        name: "Bomag BW213 Roller",
-        category: "Roller",
-        sku: "ROL-BOM-213",
-        costPrice: 180000,
-        sellingPrice: 265000,
-        quantity: 5,
-        brand: "Bomag",
-        model: "BW213",
-        year: 2023,
-      },
-    ];
-
-    const now = Date.now();
-    for (const machine of sampleMachines) {
-      await ctx.db.insert("machines", {
-        name: machine.name,
-        categoryId: categoryIds[machine.category] as never,
-        sku: machine.sku,
-        costPrice: machine.costPrice,
-        sellingPrice: machine.sellingPrice,
-        quantity: machine.quantity,
-        lowStockThreshold: 3,
-        brand: machine.brand,
-        model: machine.model,
-        year: machine.year,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
     return {
       message: "Database seeded successfully.",
       adminEmail: "admin@tendzuventures.com",
       defaultPassword: "Admin@123",
     };
+  },
+});
+
+export const clearCatalogData = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const sales = await ctx.db.query("sales").collect();
+    for (const sale of sales) await ctx.db.delete(sale._id);
+
+    const restocking = await ctx.db.query("restocking").collect();
+    for (const entry of restocking) await ctx.db.delete(entry._id);
+
+    const machines = await ctx.db.query("machines").collect();
+    for (const machine of machines) await ctx.db.delete(machine._id);
+
+    const categories = await ctx.db.query("categories").collect();
+    for (const category of categories) await ctx.db.delete(category._id);
+
+    const notifications = await ctx.db.query("notifications").collect();
+    let clearedNotifications = 0;
+    for (const notification of notifications) {
+      if (
+        notification.type === "sale" ||
+        notification.type === "restock" ||
+        notification.type === "low_stock" ||
+        notification.type === "out_of_stock"
+      ) {
+        await ctx.db.delete(notification._id);
+        clearedNotifications++;
+      }
+    }
+
+    return {
+      message: "Catalog data cleared.",
+      deleted: {
+        sales: sales.length,
+        restocking: restocking.length,
+        machines: machines.length,
+        categories: categories.length,
+        notifications: clearedNotifications,
+      },
+    };
+  },
+});
+
+export const migrateToAdminOnly = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    let updated = 0;
+    for (const user of users) {
+      if (user.role !== "admin") {
+        await ctx.db.patch(user._id, { role: "admin" });
+        updated++;
+      }
+    }
+    return { message: "All users set to admin role.", updated };
+  },
+});
+
+export const backfillSaleProfit = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const sales = await ctx.db.query("sales").collect();
+    let updated = 0;
+    for (const sale of sales) {
+      if (sale.totalProfit !== undefined && sale.unitCostPrice !== undefined) continue;
+      const machine = await ctx.db.get(sale.machineId);
+      if (!machine) continue;
+      const unitCostPrice = sale.unitCostPrice ?? machine.costPrice;
+      const totalProfit =
+        sale.totalProfit ?? (sale.unitPrice - unitCostPrice) * sale.quantity;
+      await ctx.db.patch(sale._id, { unitCostPrice, totalProfit });
+      updated++;
+    }
+    return { message: "Sale profit fields backfilled.", updated };
   },
 });

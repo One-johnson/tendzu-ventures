@@ -3,6 +3,19 @@ import { query } from "./_generated/server";
 import { requireAuth } from "./lib/auth";
 import { getStockStatus } from "./lib/stock";
 
+function getSaleProfit(sale: {
+  quantity: number;
+  unitPrice: number;
+  unitCostPrice?: number;
+  totalProfit?: number;
+}): number {
+  if (sale.totalProfit !== undefined) return sale.totalProfit;
+  if (sale.unitCostPrice !== undefined) {
+    return (sale.unitPrice - sale.unitCostPrice) * sale.quantity;
+  }
+  return 0;
+}
+
 function startOfDay(timestamp: number): number {
   const d = new Date(timestamp);
   d.setHours(0, 0, 0, 0);
@@ -34,6 +47,7 @@ export const inventoryReport = query({
     const categoryMap = new Map(categories.map((c) => [c._id, c.name]));
 
     return machines.map((m) => ({
+      customId: m.customId ?? "—",
       name: m.name,
       sku: m.sku,
       category: categoryMap.get(m.categoryId) ?? "Unknown",
@@ -58,6 +72,7 @@ export const lowStockReport = query({
     return machines
       .filter((m) => getStockStatus(m.quantity, m.lowStockThreshold) === "low_stock")
       .map((m) => ({
+        customId: m.customId ?? "—",
         name: m.name,
         sku: m.sku,
         category: categoryMap.get(m.categoryId) ?? "Unknown",
@@ -79,6 +94,7 @@ export const outOfStockReport = query({
     return machines
       .filter((m) => m.quantity <= 0)
       .map((m) => ({
+        customId: m.customId ?? "—",
         name: m.name,
         sku: m.sku,
         category: categoryMap.get(m.categoryId) ?? "Unknown",
@@ -121,6 +137,7 @@ export const salesReport = query({
     }
 
     const totalRevenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const totalProfit = sales.reduce((sum, s) => sum + getSaleProfit(s), 0);
     const totalUnits = sales.reduce((sum, s) => sum + s.quantity, 0);
 
     return {
@@ -129,6 +146,7 @@ export const salesReport = query({
         totalSales: sales.length,
         totalUnits,
         totalRevenue,
+        totalProfit,
         averageOrderValue: sales.length > 0 ? totalRevenue / sales.length : 0,
       },
     };
@@ -149,28 +167,33 @@ export const revenueSummary = query({
     };
 
     const summary = {
-      daily: { revenue: 0, units: 0, transactions: 0 },
-      weekly: { revenue: 0, units: 0, transactions: 0 },
-      monthly: { revenue: 0, units: 0, transactions: 0 },
-      allTime: { revenue: 0, units: 0, transactions: sales.length },
+      daily: { revenue: 0, profit: 0, units: 0, transactions: 0 },
+      weekly: { revenue: 0, profit: 0, units: 0, transactions: 0 },
+      monthly: { revenue: 0, profit: 0, units: 0, transactions: 0 },
+      allTime: { revenue: 0, profit: 0, units: 0, transactions: sales.length },
     };
 
     for (const sale of sales) {
+      const profit = getSaleProfit(sale);
       summary.allTime.revenue += sale.totalAmount;
+      summary.allTime.profit += profit;
       summary.allTime.units += sale.quantity;
 
       if (sale.saleDate >= periods.daily) {
         summary.daily.revenue += sale.totalAmount;
+        summary.daily.profit += profit;
         summary.daily.units += sale.quantity;
         summary.daily.transactions++;
       }
       if (sale.saleDate >= periods.weekly) {
         summary.weekly.revenue += sale.totalAmount;
+        summary.weekly.profit += profit;
         summary.weekly.units += sale.quantity;
         summary.weekly.transactions++;
       }
       if (sale.saleDate >= periods.monthly) {
         summary.monthly.revenue += sale.totalAmount;
+        summary.monthly.profit += profit;
         summary.monthly.units += sale.quantity;
         summary.monthly.transactions++;
       }

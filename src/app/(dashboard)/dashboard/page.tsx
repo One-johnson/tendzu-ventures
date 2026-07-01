@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { ColumnDef } from "@tanstack/react-table";
 import { api } from "@convex/_generated/api";
@@ -22,6 +23,7 @@ import {
   TopSellingChart,
 } from "@/components/charts/dashboard-charts";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
+import { searchRoutes } from "@/lib/search-routes";
 import { FadeIn, MotionCard, staggerContainer } from "@/components/motion/page-wrapper";
 import { motion } from "framer-motion";
 import type {
@@ -54,8 +56,8 @@ export default function DashboardPage() {
   const chartData = useQuery(api.dashboard.getChartData, token ? { token } : "skip") as
     | {
         stockBreakdown: { name: string; value: number; fill: string }[];
-        dailyRevenue: { date: string; revenue: number; units: number }[];
-        revenueComparison: { period: string; revenue: number }[];
+        dailyRevenue: { date: string; revenue: number; profit: number; units: number }[];
+        revenueComparison: { period: string; revenue: number; profit: number }[];
       }
     | undefined;
 
@@ -71,7 +73,12 @@ export default function DashboardPage() {
         accessorKey: "invoiceNumber",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Invoice" />,
         cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.invoiceNumber}</span>
+          <Link
+            href={searchRoutes.sale(row.original._id)}
+            className="font-mono text-xs text-primary hover:underline"
+          >
+            {row.original.invoiceNumber}
+          </Link>
         ),
       },
       {
@@ -174,15 +181,16 @@ export default function DashboardPage() {
         initial="hidden"
         animate="visible"
         className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4"
+        data-tour="dashboard-stats"
       >
         <StatCard index={0} title="Total Machines" value={formatNumber(machineStats.totalMachines)} icon={Package} />
         <StatCard index={1} title="Categories" value={formatNumber(machineStats.totalCategories)} icon={Layers} />
         <StatCard index={2} title="In Stock" value={formatNumber(machineStats.inStock)} icon={CheckCircle} variant="success" />
         <StatCard index={3} title="Low Stock Alerts" value={formatNumber(machineStats.lowStock)} icon={AlertTriangle} variant="warning" />
         <StatCard index={4} title="Out of Stock" value={formatNumber(machineStats.outOfStock)} icon={XCircle} variant="danger" />
-        <StatCard index={5} title="Today's Sales" value={formatNumber(revenueStats.todaySales)} description={`Revenue: ${formatCurrency(revenueStats.todayRevenue)}`} icon={ShoppingCart} />
-        <StatCard index={6} title="Weekly Sales" value={formatNumber(revenueStats.weeklySales)} description={`Revenue: ${formatCurrency(revenueStats.weeklyRevenue)}`} icon={TrendingUp} />
-        <StatCard index={7} title="Monthly Revenue" value={formatCurrency(revenueStats.monthlyRevenue)} description={`${formatNumber(revenueStats.monthlySales)} units sold`} icon={DollarSign} variant="success" />
+        <StatCard index={5} title="Today's Sales" value={formatNumber(revenueStats.todaySales)} description={`Revenue: ${formatCurrency(revenueStats.todayRevenue)} · Profit: ${formatCurrency(revenueStats.todayProfit)}`} icon={ShoppingCart} />
+        <StatCard index={6} title="Weekly Sales" value={formatNumber(revenueStats.weeklySales)} description={`Revenue: ${formatCurrency(revenueStats.weeklyRevenue)} · Profit: ${formatCurrency(revenueStats.weeklyProfit)}`} icon={TrendingUp} />
+        <StatCard index={7} title="Monthly Revenue" value={formatCurrency(revenueStats.monthlyRevenue)} description={`${formatNumber(revenueStats.monthlySales)} units · Profit: ${formatCurrency(revenueStats.monthlyProfit)}`} icon={DollarSign} variant="success" />
       </motion.div>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">

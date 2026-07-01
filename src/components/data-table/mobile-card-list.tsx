@@ -2,17 +2,22 @@
 
 import { flexRender, Row } from "@tanstack/react-table";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface MobileCardListProps<TData> {
   rows: Row<TData>[];
   renderCard: (row: Row<TData>, index: number) => React.ReactNode;
   emptyMessage?: string;
+  highlightRowId?: string | null;
+  getRowId?: (row: TData) => string;
 }
 
 export function MobileCardList<TData>({
   rows,
   renderCard,
   emptyMessage = "No results.",
+  highlightRowId,
+  getRowId,
 }: MobileCardListProps<TData>) {
   if (rows.length === 0) {
     return (
@@ -24,16 +29,25 @@ export function MobileCardList<TData>({
 
   return (
     <div className="space-y-3 md:hidden">
-      {rows.map((row, index) => (
+      {rows.map((row, index) => {
+        const rowDomId = getRowId?.(row.original) ?? row.id;
+        const isHighlighted = highlightRowId === rowDomId;
+
+        return (
         <motion.div
           key={row.id}
+          data-row-id={rowDomId}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.04, duration: 0.25 }}
+          className={cn(
+            isHighlighted && "rounded-xl ring-2 ring-yellow-500/50 ring-offset-2 ring-offset-background"
+          )}
         >
           {renderCard(row, index)}
         </motion.div>
-      ))}
+        );
+      })}
     </div>
   );
 }

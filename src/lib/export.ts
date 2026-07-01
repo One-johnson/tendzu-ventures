@@ -1,37 +1,64 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { createElement } from "react";
 import * as XLSX from "xlsx";
+import { APP_NAME } from "@/lib/constants";
+import { getBrandLogoUrl } from "@/lib/brand";
+import { getSaleProfit } from "@/lib/sales";
+import type { SaleRecord } from "@/types";
+import type { ExportColumn } from "@/lib/pdf/report-document";
 
-interface ExportColumn {
-  header: string;
-  key: string;
+export type { ExportColumn };
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
-export function exportToPDF(
+export async function exportToPDF(
   title: string,
   columns: ExportColumn[],
   rows: Array<object>,
   filename: string
 ) {
-  const doc = new jsPDF();
-  doc.setFontSize(18);
-  doc.text("Tendzu Ventures", 14, 18);
-  doc.setFontSize(12);
-  doc.text(title, 14, 28);
-  doc.setFontSize(9);
-  doc.text(`Generated: ${new Date().toLocaleString("en-GH")}`, 14, 36);
+  const [{ pdf }, { ReportDocument }] = await Promise.all([
+    import("@react-pdf/renderer"),
+    import("@/lib/pdf/report-document"),
+  ]);
 
-  autoTable(doc, {
-    startY: 42,
-    head: [columns.map((c) => c.header)],
-    body: rows.map((row) =>
-      columns.map((c) => String((row as Record<string, unknown>)[c.key] ?? ""))
-    ),
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [234, 88, 12] },
-  });
+  const blob = await pdf(
+    createElement(ReportDocument, {
+      title,
+      columns,
+      rows,
+      generatedAt: new Date().toLocaleString("en-GH"),
+      logoUrl: getBrandLogoUrl(),
+    })
+  ).toBlob();
 
-  doc.save(`${filename}.pdf`);
+  downloadBlob(blob, `${filename}.pdf`);
+}
+
+export async function exportInvoicePDF(sale: SaleRecord) {
+  const [{ pdf }, { InvoiceDocument }] = await Promise.all([
+    import("@react-pdf/renderer"),
+    import("@/lib/pdf/invoice-document"),
+  ]);
+
+  const profit = getSaleProfit(sale);
+  const blob = await pdf(
+    createElement(InvoiceDocument, {
+      sale,
+      profit,
+      generatedAt: new Date().toLocaleString("en-GH"),
+      logoUrl: getBrandLogoUrl(),
+      companyName: APP_NAME,
+    }) as never
+  ).toBlob();
+
+  downloadBlob(blob, `${sale.invoiceNumber}.pdf`);
 }
 
 export function exportToExcel(

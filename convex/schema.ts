@@ -1,11 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-export const userRole = v.union(
-  v.literal("admin"),
-  v.literal("manager"),
-  v.literal("viewer")
-);
+export const userRole = v.literal("admin");
 
 export const notificationType = v.union(
   v.literal("sale"),
@@ -21,6 +17,8 @@ export default defineSchema({
     name: v.string(),
     role: userRole,
     isActive: v.boolean(),
+    credentialsCustomized: v.optional(v.boolean()),
+    credentialPromptDismissed: v.optional(v.boolean()),
     createdAt: v.number(),
   })
     .index("by_email", ["email"])
@@ -45,6 +43,7 @@ export default defineSchema({
     .index("by_name", ["name"]),
 
   machines: defineTable({
+    customId: v.optional(v.string()),
     name: v.string(),
     categoryId: v.id("categories"),
     description: v.optional(v.string()),
@@ -61,6 +60,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_category", ["categoryId"])
+    .index("by_customId", ["customId"])
     .index("by_sku", ["sku"])
     .index("by_quantity", ["quantity"])
     .searchIndex("search_machines", {
@@ -87,7 +87,9 @@ export default defineSchema({
     machineName: v.string(),
     quantity: v.number(),
     unitPrice: v.number(),
+    unitCostPrice: v.optional(v.number()),
     totalAmount: v.number(),
+    totalProfit: v.optional(v.number()),
     salesperson: v.string(),
     userId: v.id("users"),
     saleDate: v.number(),

@@ -22,6 +22,7 @@ import { useTheme } from "next-themes";
 interface DailyRevenuePoint {
   date: string;
   revenue: number;
+  profit?: number;
   units: number;
 }
 
@@ -63,6 +64,10 @@ export function RevenueTrendChart({ data }: { data: DailyRevenuePoint[] }) {
                   <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.35} />
                   <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
                 </linearGradient>
+                <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
+                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
               <XAxis
@@ -80,7 +85,10 @@ export function RevenueTrendChart({ data }: { data: DailyRevenuePoint[] }) {
               />
               <Tooltip
                 contentStyle={tooltipStyle}
-                formatter={(value) => [formatCurrency(Number(value ?? 0)), "Revenue"]}
+                formatter={(value, name) => [
+                  formatCurrency(Number(value ?? 0)),
+                  name === "revenue" ? "Revenue" : name === "profit" ? "Profit" : "Units",
+                ]}
               />
               <Area
                 type="monotone"
@@ -89,6 +97,15 @@ export function RevenueTrendChart({ data }: { data: DailyRevenuePoint[] }) {
                 strokeWidth={2}
                 fill="url(#revenueGradient)"
               />
+              {data.some((point) => (point.profit ?? 0) > 0) && (
+                <Area
+                  type="monotone"
+                  dataKey="profit"
+                  stroke="var(--chart-2)"
+                  strokeWidth={2}
+                  fill="url(#profitGradient)"
+                />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>

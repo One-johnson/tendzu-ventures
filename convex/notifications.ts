@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAuth } from "./lib/auth";
@@ -10,13 +11,13 @@ export const list = query({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx, args.token);
-    const limit = args.limit ?? 20;
+    const limit = args.limit ?? 50;
 
     let notifications = await ctx.db
       .query("notifications")
       .withIndex("by_date")
       .order("desc")
-      .take(limit * 2);
+      .collect();
 
     if (args.unreadOnly) {
       notifications = notifications.filter((n) => !n.isRead);
@@ -45,7 +46,22 @@ export const markAsRead = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx, args.token);
+    const notification = await ctx.db.get(args.id);
+    if (!notification) throw new ConvexError("Notification not found.");
     await ctx.db.patch(args.id, { isRead: true });
+  },
+});
+
+export const markAsUnread = mutation({
+  args: {
+    token: v.string(),
+    id: v.id("notifications"),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.token);
+    const notification = await ctx.db.get(args.id);
+    if (!notification) throw new ConvexError("Notification not found.");
+    await ctx.db.patch(args.id, { isRead: false });
   },
 });
 
@@ -60,6 +76,72 @@ export const markAllAsRead = mutation({
 
     for (const notification of notifications) {
       await ctx.db.patch(notification._id, { isRead: true });
+    }
+  },
+});
+
+export const bulkMarkAsRead = mutation({
+  args: {
+    token: v.string(),
+    ids: v.array(v.id("notifications")),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.token);
+    for (const id of args.ids) {
+      const notification = await ctx.db.get(id);
+      if (notification) await ctx.db.patch(id, { isRead: true });
+    }
+  },
+});
+
+export const bulkMarkAsUnread = mutation({
+  args: {
+    token: v.string(),
+    ids: v.array(v.id("notifications")),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.token);
+    for (const id of args.ids) {
+      const notification = await ctx.db.get(id);
+      if (notification) await ctx.db.patch(id, { isRead: false });
+    }
+  },
+});
+
+export const remove = mutation({
+  args: {
+    token: v.string(),
+    id: v.id("notifications"),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.token);
+    const notification = await ctx.db.get(args.id);
+    if (!notification) throw new ConvexError("Notification not found.");
+    await ctx.db.delete(args.id);
+  },
+});
+
+export const bulkRemove = mutation({
+  args: {
+    token: v.string(),
+    ids: v.array(v.id("notifications")),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.token);
+    for (const id of args.ids) {
+      const notification = await ctx.db.get(id);
+      if (notification) await ctx.db.delete(id);
+    }
+  },
+});
+
+export const removeAll = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx, args.token);
+    const notifications = await ctx.db.query("notifications").collect();
+    for (const notification of notifications) {
+      await ctx.db.delete(notification._id);
     }
   },
 });

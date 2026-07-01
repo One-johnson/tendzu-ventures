@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { ColumnDef } from "@tanstack/react-table";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { MachineWithMeta, RestockingRecord } from "@/types";
+import type { Category, MachineWithMeta, RestockingRecord } from "@/types";
 import { useSessionToken } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -44,16 +45,57 @@ import { toast } from "sonner";
 export default function RestockingPage() {
   const token = useSessionToken();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [categoryId, setCategoryId] = useState("all");
   const [machineId, setMachineId] = useState("");
   const [quantityAdded, setQuantityAdded] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const machines = useQuery(api.machines.list, token ? { token } : "skip") as MachineWithMeta[] | undefined;
+  const categories = useQuery(api.categories.list, token ? { token } : "skip") as Category[] | undefined;
   const history = useQuery(api.restocking.list, token ? { token, limit: 50 } : "skip") as RestockingRecord[] | undefined;
   const restock = useMutation(api.restocking.create);
 
+  const filteredMachines = useMemo(() => {
+    if (!machines) return [];
+    if (categoryId === "all") return machines;
+    return machines.filter((machine) => machine.categoryId === categoryId);
+  }, [machines, categoryId]);
+
+  const machineOptions = useMemo(
+    () =>
+      filteredMachines.map((machine) => ({
+        value: machine._id,
+        label: `${machine.name} (Current: ${machine.quantity})`,
+        keywords: [machine.name, machine.sku, machine.customId, machine.category?.name]
+          .filter(Boolean)
+          .join(" "),
+      })),
+    [filteredMachines]
+  );
+
   const selectedMachine = machines?.find((m) => m._id === machineId);
+
+  const resetForm = () => {
+    setCategoryId("all");
+    setMachineId("");
+    setQuantityAdded("");
+    setNotes("");
+  };
+
+  const handleCategoryChange = (value: string) => {
+    setCategoryId(value);
+    if (!machineId) return;
+    const machine = machines?.find((m) => m._id === machineId);
+    if (machine && value !== "all" && machine.categoryId !== value) {
+      setMachineId("");
+    }
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) resetForm();
+  };
 
   const columns = useMemo<ColumnDef<RestockingRecord>[]>(
     () => [
@@ -110,9 +152,7 @@ export default function RestockingPage() {
         `Restocked successfully. Stock updated from ${result.previousQuantity} to ${result.newQuantity}.`
       );
       setDialogOpen(false);
-      setMachineId("");
-      setQuantityAdded("");
-      setNotes("");
+      resetForm();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Restocking failed");
     } finally {
@@ -120,12 +160,12 @@ export default function RestockingPage() {
     }
   };
 
-  if (!machines || !history) return <PageLoader />;
+  if (!machines || !categories || !history) return <PageLoader />;
 
   return (
     <div className="space-y-4 sm:space-y-6">
       <FadeIn>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" data-tour="restocking-form">
           <div>
             <h2 className="text-xl font-bold text-foreground sm:text-2xl">Stock Restocking</h2>
             <p className="text-sm text-muted-foreground">Record new stock arrivals and track history</p>
@@ -171,26 +211,43 @@ export default function RestockingPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Record Stock Restocking</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label>Select Machine *</Label>
-              <Select value={machineId} onValueChange={setMachineId}>
+              <Label>Category *</Label>
+              <Select value={categoryId} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="h-10 touch-manipulation">
-                  <SelectValue placeholder="Choose a machine" />
+                  <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {machines.map((machine) => (
-                    <SelectItem key={machine._id} value={machine._id}>
-                      {machine.name} (Current: {machine.quantity})
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category._id} value={category._id}>
+                      {category.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Select Machine *</Label>
+              <Combobox
+                options={machineOptions}
+                value={machineId}
+                onValueChange={setMachineId}
+                placeholder={
+                  filteredMachines.length === 0
+                    ? "No machines in this category"
+                    : "Search and choose a machine"
+                }
+                searchPlaceholder="Search by name, SKU, or ID..."
+                emptyText="No machines match your search."
+                disabled={filteredMachines.length === 0}
+              />
             </div>
             {selectedMachine && (
               <div className="rounded-lg bg-muted p-3 text-sm">
@@ -227,7 +284,7 @@ export default function RestockingPage() {
             </div>
           </div>
           <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full touch-manipulation sm:w-auto">
+            <Button variant="outline" onClick={() => handleDialogOpenChange(false)} className="w-full touch-manipulation sm:w-auto">
               Cancel
             </Button>
             <Button

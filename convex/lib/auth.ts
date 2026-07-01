@@ -36,19 +36,18 @@ export async function requireAuth(
   return user;
 }
 
-export function requireRole(
-  user: Doc<"users">,
-  roles: Array<Doc<"users">["role"]>
-) {
-  if (!roles.includes(user.role)) {
-    throw new ConvexError("You do not have permission to perform this action.");
+export function requireAdmin(user: Doc<"users">) {
+  if (user.role !== "admin") {
+    throw new ConvexError("Admin access required.");
   }
 }
 
-export function canWrite(user: Doc<"users">) {
-  return user.role === "admin" || user.role === "manager";
+/** @deprecated All authenticated users are admins. Kept for call-site clarity. */
+export function canWrite(_user: Doc<"users">) {
+  return true;
 }
 
-export function canDelete(user: Doc<"users">) {
-  return user.role === "admin";
+/** @deprecated All authenticated users are admins. Kept for call-site clarity. */
+export function canDelete(_user: Doc<"users">) {
+  return true;
 }

@@ -1,6 +1,7 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import bcrypt from "bcryptjs";
+import type { Doc } from "./_generated/dataModel";
 import { getUserFromToken, requireAuth } from "./lib/auth";
 
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -9,6 +10,17 @@ function generateToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function toSessionUser(user: Doc<"users">) {
+  return {
+    _id: user._id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    showCredentialPrompt:
+      !user.credentialsCustomized && !user.credentialPromptDismissed,
+  };
 }
 
 export const login = mutation({
@@ -24,12 +36,12 @@ export const login = mutation({
       .unique();
 
     if (!user || !user.isActive) {
-      throw new Error("Invalid email or password.");
+      throw new ConvexError("Invalid email or password.");
     }
 
-    const valid = await bcrypt.compare(args.password, user.passwordHash);
+    const valid = bcrypt.compareSync(args.password, user.passwordHash);
     if (!valid) {
-      throw new Error("Invalid email or password.");
+      throw new ConvexError("Invalid email or password.");
     }
 
     const token = generateToken();
@@ -45,12 +57,7 @@ export const login = mutation({
     return {
       token,
       expiresAt,
-      user: {
-        _id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+      user: toSessionUser(user),
     };
   },
 });
@@ -77,12 +84,7 @@ export const getSession = query({
     const user = await getUserFromToken(ctx, args.token);
     if (!user) return null;
 
-    return {
-      _id: user._id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
+    return toSessionUser(user);
   },
 });
 
@@ -95,17 +97,70 @@ export const changePassword = mutation({
   handler: async (ctx, args) => {
     const user = await requireAuth(ctx, args.token);
 
-    const valid = await bcrypt.compare(args.currentPassword, user.passwordHash);
+    const valid = bcrypt.compareSync(args.currentPassword, user.passwordHash);
     if (!valid) {
-      throw new Error("Current password is incorrect.");
+      throw new ConvexError("Current password is incorrect.");
     }
 
     if (args.newPassword.length < 8) {
-      throw new Error("New password must be at least 8 characters.");
+      throw new ConvexError("New password must be at least 8 characters.");
     }
 
-    const passwordHash = await bcrypt.hash(args.newPassword, 12);
-    await ctx.db.patch(user._id, { passwordHash });
+    const passwordHash = bcrypt.hashSync(args.newPassword, 12);
+    await ctx.db.patch(user._id, {
+      passwordHash,
+      credentialsCustomized: true,
+    });
+
+    return { success: true };
+  },
+});
+
+export const changeEmail = mutation({
+  args: {
+    token: v.string(),
+    newEmail: v.string(),
+    currentPassword: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuth(ctx, args.token);
+
+    const valid = bcrypt.compareSync(args.currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new ConvexError("Current password is incorrect.");
+    }
+
+    const email = args.newEmail.trim().toLowerCase();
+    if (!email.includes("@")) {
+      throw new ConvexError("Enter a valid email address.");
+    }
+
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+
+    if (existing && existing._id !== user._id) {
+      throw new ConvexError("That email is already in use.");
+    }
+
+    await ctx.db.patch(user._id, {
+      email,
+      credentialsCustomized: true,
+    });
+
+    return { success: true, email };
+  },
+});
+
+export const dismissCredentialPrompt = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const user = await requireAuth(ctx, args.token);
+
+    await ctx.db.patch(user._id, {
+      credentialPromptDismissed: true,
+    });
 
     return { success: true };
   },
