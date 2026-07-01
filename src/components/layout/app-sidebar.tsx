@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -14,7 +13,7 @@ import {
   LogOut,
   Settings,
 } from "lucide-react";
-import { APP_LOGO_PATH, APP_NAME, NAV_ITEMS } from "@/lib/constants";
+import { NAV_ITEMS } from "@/lib/constants";
 import { BrandLogo } from "@/components/brand/brand-logo";
 import { UserAvatar } from "@/components/layout/user-avatar";
 import type { SessionUser } from "@/types";
@@ -72,18 +71,16 @@ export function AppSidebar({
           className="flex w-full items-center justify-center px-3 py-5 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-3"
         >
           <BrandLogo
-            width={200}
-            height={80}
+            width={260}
+            height={104}
             priority
-            className="h-14 w-auto max-w-[200px] group-data-[collapsible=icon]:hidden"
+            className="h-[4.5rem] w-auto max-w-[260px] group-data-[collapsible=icon]:hidden"
           />
-          <Image
-            src={APP_LOGO_PATH}
-            alt={APP_NAME}
-            width={32}
-            height={32}
-            className="hidden size-8 object-contain group-data-[collapsible=icon]:block"
+          <BrandLogo
+            width={100}
+            height={40}
             priority
+            className="hidden h-10 w-auto group-data-[collapsible=icon]:block"
           />
         </Link>
       </SidebarHeader>

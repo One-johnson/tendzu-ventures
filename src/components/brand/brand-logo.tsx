@@ -22,7 +22,7 @@ export function BrandLogo({
       width={width}
       height={height}
       priority={priority}
-      className={cn("h-auto max-w-full object-contain", className)}
+      className={cn("h-auto w-auto max-w-full object-contain", className)}
     />
   );
 }
