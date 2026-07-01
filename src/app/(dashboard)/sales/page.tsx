@@ -46,6 +46,7 @@ import { formatCurrency, formatDateOnly, fromInputDate, toInputDate } from "@/li
 import { getSaleProfit } from "@/lib/sales";
 import { useDeepLinkParam } from "@/hooks/use-deep-link-param";
 import { useRowHighlight } from "@/hooks/use-row-highlight";
+import { useStickyQueryResult } from "@/hooks/use-sticky-query-result";
 import { DollarSign, History, Loader2, Plus, ShoppingCart, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
@@ -114,16 +115,16 @@ export default function SalesPage() {
 
   const createSale = useMutation(api.sales.create);
 
-  const chartDataRef = useRef<typeof chartData>(undefined);
-  const salesRef = useRef<typeof sales>(undefined);
-
-  if (chartData !== undefined) chartDataRef.current = chartData;
-  if (sales !== undefined) salesRef.current = sales;
-
-  const displayChartData = chartData ?? chartDataRef.current;
-  const displaySales = sales ?? salesRef.current;
-  const chartRefreshing = chartData === undefined && chartDataRef.current !== undefined;
-  const salesRefreshing = sales === undefined && salesRef.current !== undefined;
+  const {
+    data: displayChartData,
+    isRefreshing: chartRefreshing,
+    isInitialLoading: chartInitialLoading,
+  } = useStickyQueryResult(chartData);
+  const {
+    data: displaySales,
+    isRefreshing: salesRefreshing,
+    isInitialLoading: salesInitialLoading,
+  } = useStickyQueryResult(sales);
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -377,7 +378,7 @@ export default function SalesPage() {
         data={displayChartData ?? []}
         period={chartPeriod}
         onPeriodChange={setChartPeriod}
-        isLoading={!displayChartData || chartRefreshing}
+        isLoading={chartInitialLoading || chartRefreshing}
       />
 
       <Card className="border-border bg-card">
@@ -428,17 +429,17 @@ export default function SalesPage() {
             )}
           </div>
 
-          {!displaySales ? (
+          {salesInitialLoading ? (
             <div className="flex min-h-[240px] items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
             </div>
-          ) : displaySales.length === 0 ? (
+          ) : displaySales && displaySales.length === 0 ? (
             <EmptyState
               title="No sales found"
               description="Record your first sale to begin tracking revenue and profit."
               icon={<History className="h-8 w-8" />}
             />
-          ) : (
+          ) : displaySales ? (
             <div className="relative" data-tour="sales-history-table">
               {salesRefreshing && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60">
@@ -480,7 +481,7 @@ export default function SalesPage() {
                 }
               />
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 

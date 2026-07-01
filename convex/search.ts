@@ -38,7 +38,7 @@ export const global = query({
         description: category.description,
       }));
 
-    let machines = await ctx.db
+    const machines = await ctx.db
       .query("machines")
       .withSearchIndex("search_machines", (q) => q.search("name", term))
       .take(limit);
