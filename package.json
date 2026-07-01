@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "npx convex run seed:seedDatabase"
+    "seed": "npx convex run seed:seedDatabase",
+    "migrate:user:prod": "node scripts/migrate-user-to-prod.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

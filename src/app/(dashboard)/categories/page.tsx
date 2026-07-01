@@ -15,16 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ResponsiveFormPanel } from "@/components/ui/responsive-form-panel";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { PageLoader } from "@/components/shared/page-loader";
 import { BulkActionsBar } from "@/components/shared/bulk-actions-bar";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -250,6 +241,7 @@ export default function CategoriesPage() {
       setDeleteId(null);
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Failed to delete category"));
+      throw error;
     }
   };
 
@@ -285,9 +277,9 @@ export default function CategoriesPage() {
           : `Deleted ${result.deleted} categories`
       );
       clearSelection();
-      setBulkDeleteOpen(false);
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Failed to delete categories"));
+      throw error;
     }
   };
 
@@ -345,6 +337,8 @@ export default function CategoriesPage() {
   );
 
   if (!categories) return <PageLoader />;
+
+  const categoryToDelete = categories.find((category) => category._id === deleteId);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -542,39 +536,47 @@ export default function CategoriesPage() {
         </div>
       </ResponsiveFormPanel>
 
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete category?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. Categories with assigned machines cannot be deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={!!deleteId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteId(null);
+        }}
+        title="Delete category?"
+        description={
+          <>
+            {categoryToDelete ? (
+              <p>
+                You are about to permanently delete{" "}
+                <span className="font-medium text-foreground">{categoryToDelete.name}</span>.
+              </p>
+            ) : (
+              <p>You are about to permanently delete this category.</p>
+            )}
+            <p>Categories with assigned machines cannot be deleted. This action cannot be undone.</p>
+          </>
+        }
+        onConfirm={handleDelete}
+      />
 
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectionCount} categories?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Categories with assigned machines will be skipped. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700">
-              Delete selected
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Delete ${selectionCount} categories?`}
+        description={
+          <>
+            <p>
+              You are about to delete{" "}
+              <span className="font-medium text-foreground">
+                {selectionCount} selected categories
+              </span>
+              .
+            </p>
+            <p>Categories with assigned machines will be skipped. This cannot be undone.</p>
+          </>
+        }
+        confirmLabel="Delete selected"
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }
