@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers/providers";
-import { APP_DESCRIPTION, APP_LOGO_PATH, APP_NAME } from "@/lib/constants";
+import { APP_DESCRIPTION, APP_NAME } from "@/lib/constants";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -15,10 +15,6 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
-  icons: {
-    icon: APP_LOGO_PATH,
-    apple: APP_LOGO_PATH,
-  },
 };
 
 export const viewport: Viewport = {

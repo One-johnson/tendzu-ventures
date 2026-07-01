@@ -52,7 +52,7 @@ export default function LoginPage() {
 
       <div className="relative hidden flex-1 items-center justify-center bg-[var(--sidebar)] p-8 text-white lg:flex lg:p-12">
         <div className="flex max-w-lg flex-col items-center text-center">
-          <BrandLogo width={300} height={120} priority className="max-w-[min(100%,320px)]" />
+          <BrandLogo width={300} height={120} priority className="h-auto w-auto max-w-[min(100%,320px)]" />
           <div className="mt-10">
             <h2 className="text-3xl font-bold leading-tight">
               Manage Your Heavy Equipment
