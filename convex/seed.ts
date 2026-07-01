@@ -1,4 +1,5 @@
 import { mutation } from "./_generated/server";
+import { v } from "convex/values";
 import bcrypt from "bcryptjs";
 
 export const seedDatabase = mutation({
@@ -112,5 +113,48 @@ export const backfillSaleProfit = mutation({
       updated++;
     }
     return { message: "Sale profit fields backfilled.", updated };
+  },
+});
+
+/** Upsert a user by email. Used when copying auth from dev to prod. */
+export const importUser = mutation({
+  args: {
+    email: v.string(),
+    passwordHash: v.string(),
+    name: v.string(),
+    role: v.literal("admin"),
+    isActive: v.boolean(),
+    credentialsCustomized: v.optional(v.boolean()),
+    credentialPromptDismissed: v.optional(v.boolean()),
+    createdAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase();
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+
+    const userFields = {
+      passwordHash: args.passwordHash,
+      name: args.name,
+      role: args.role,
+      isActive: args.isActive,
+      credentialsCustomized: args.credentialsCustomized ?? false,
+      credentialPromptDismissed: args.credentialPromptDismissed ?? false,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, userFields);
+      return { action: "updated" as const, email, userId: existing._id };
+    }
+
+    const userId = await ctx.db.insert("users", {
+      email,
+      ...userFields,
+      createdAt: args.createdAt ?? Date.now(),
+    });
+
+    return { action: "inserted" as const, email, userId };
   },
 });

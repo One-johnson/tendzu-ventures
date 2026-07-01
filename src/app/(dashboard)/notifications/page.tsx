@@ -17,16 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { getFriendlyErrorMessage } from "@/lib/errors";
 import { Mail, MailOpen, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -91,8 +82,18 @@ export default function NotificationsPage() {
       "Marked as unread"
     );
 
-  const handleBulkDelete = () =>
-    runBulk(() => bulkRemove({ token: token!, ids: selectedArray }), "Deleted notifications");
+  const handleBulkDelete = async () => {
+    if (!token || selectedArray.length === 0) return;
+    try {
+      await bulkRemove({ token, ids: selectedArray });
+      toast.success("Deleted notifications");
+      setSelectedIds(new Set());
+      setBulkAction(null);
+    } catch (error) {
+      toast.error(getFriendlyErrorMessage(error, "Failed to delete notifications"));
+      throw error;
+    }
+  };
 
   const handleDeleteAll = async () => {
     if (!token) return;
@@ -100,9 +101,9 @@ export default function NotificationsPage() {
       await removeAll({ token });
       toast.success("All notifications cleared");
       setSelectedIds(new Set());
-      setConfirmDeleteAll(false);
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Failed to clear notifications"));
+      throw error;
     }
   };
 
@@ -210,43 +211,47 @@ export default function NotificationsPage() {
         />
       </div>
 
-      <AlertDialog open={bulkAction === "delete"} onOpenChange={() => setBulkAction(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedIds.size} notifications?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                handleBulkDelete();
-                setBulkAction(null);
-              }}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={bulkAction === "delete"}
+        onOpenChange={(open) => {
+          if (!open) setBulkAction(null);
+        }}
+        title={`Delete ${selectedIds.size} notifications?`}
+        description={
+          <>
+            <p>
+              You are about to permanently delete{" "}
+              <span className="font-medium text-foreground">
+                {selectedIds.size} selected notifications
+              </span>
+              .
+            </p>
+            <p>This action cannot be undone.</p>
+          </>
+        }
+        onConfirm={handleBulkDelete}
+      />
 
-      <AlertDialog open={confirmDeleteAll} onOpenChange={setConfirmDeleteAll}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear all notifications?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete every notification.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteAll} className="bg-red-600 hover:bg-red-700">
-              Clear all
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={confirmDeleteAll}
+        onOpenChange={setConfirmDeleteAll}
+        title="Clear all notifications?"
+        description={
+          <>
+            <p>
+              You are about to permanently delete{" "}
+              <span className="font-medium text-foreground">
+                all {notifications.length} notifications
+              </span>
+              .
+            </p>
+            <p>This action cannot be undone.</p>
+          </>
+        }
+        confirmLabel="Clear all"
+        loadingLabel="Clearing..."
+        onConfirm={handleDeleteAll}
+      />
     </div>
   );
 }

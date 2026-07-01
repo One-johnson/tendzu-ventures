@@ -20,16 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ResponsiveFormPanel } from "@/components/ui/responsive-form-panel";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { PageLoader } from "@/components/shared/page-loader";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DataTable } from "@/components/data-table/data-table";
@@ -250,7 +241,20 @@ export default function InventoryPage() {
       toast.success("Machine deleted");
       setDeleteId(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete");
+      toast.error(getFriendlyErrorMessage(error, "Failed to delete machine"));
+      throw error;
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!token || selectedIds.length === 0) return;
+    try {
+      await bulkRemoveMachines({ token, ids: selectedIds });
+      toast.success("Selected machines deleted");
+      clearSelection();
+    } catch (error) {
+      toast.error(getFriendlyErrorMessage(error, "Failed to delete machines"));
+      throw error;
     }
   };
 
@@ -264,14 +268,9 @@ export default function InventoryPage() {
       clearSelection();
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Bulk action failed"));
+      throw error;
     }
   };
-
-  const handleBulkDelete = () =>
-    runBulkAction(
-      () => bulkRemoveMachines({ token: token!, ids: selectedIds }),
-      "Selected machines deleted"
-    );
 
   const handleBulkActivate = (isActive: boolean) =>
     runBulkAction(
@@ -384,6 +383,8 @@ export default function InventoryPage() {
   );
 
   if (!machines || !categories) return <PageLoader />;
+
+  const machineToDelete = machines.find((machine) => machine._id === deleteId);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -674,45 +675,47 @@ export default function InventoryPage() {
         onEdit={openEdit}
       />
 
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Machine?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. Machines with sales history cannot be deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={!!deleteId}
+        onOpenChange={(open) => {
+          if (!open) setDeleteId(null);
+        }}
+        title="Delete machine?"
+        description={
+          <>
+            {machineToDelete ? (
+              <p>
+                You are about to permanently delete{" "}
+                <span className="font-medium text-foreground">{machineToDelete.name}</span>.
+              </p>
+            ) : (
+              <p>You are about to permanently delete this machine.</p>
+            )}
+            <p>Machines with sales history cannot be deleted. This action cannot be undone.</p>
+          </>
+        }
+        onConfirm={handleDelete}
+      />
 
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedMachines.length} machines?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Machines with sales history will be skipped. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                handleBulkDelete();
-                setBulkDeleteOpen(false);
-              }}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete selected
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Delete ${selectedMachines.length} machines?`}
+        description={
+          <>
+            <p>
+              You are about to delete{" "}
+              <span className="font-medium text-foreground">
+                {selectedMachines.length} selected machines
+              </span>
+              .
+            </p>
+            <p>Machines with sales history will be skipped. This cannot be undone.</p>
+          </>
+        }
+        confirmLabel="Delete selected"
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }
