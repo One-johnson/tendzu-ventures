@@ -1,8 +1,80 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { canDelete, canWrite, requireAuth } from "./lib/auth";
+import { generateUniqueCustomId } from "./lib/customId";
 import { createNotification } from "./lib/notifications";
 import { getStockStatus } from "./lib/stock";
+
+const bulkMachineInput = v.object({
+  name: v.string(),
+  description: v.optional(v.string()),
+  costPrice: v.number(),
+  sellingPrice: v.number(),
+  quantity: v.number(),
+  brand: v.optional(v.string()),
+  model: v.optional(v.string()),
+  year: v.optional(v.number()),
+});
+
+async function insertMachine(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  args: {
+    name: string;
+    categoryId: Id<"categories">;
+    description?: string;
+    costPrice: number;
+    sellingPrice: number;
+    quantity: number;
+    lowStockThreshold: number;
+    brand?: string;
+    model?: string;
+    year?: number;
+  }
+) {
+  const customId = await generateUniqueCustomId(ctx);
+  const sku = `TV-${customId}`;
+  const now = Date.now();
+
+  const id = await ctx.db.insert("machines", {
+    customId,
+    name: args.name.trim(),
+    categoryId: args.categoryId,
+    description: args.description?.trim(),
+    sku,
+    costPrice: args.costPrice,
+    sellingPrice: args.sellingPrice,
+    quantity: args.quantity,
+    lowStockThreshold: args.lowStockThreshold,
+    brand: args.brand?.trim(),
+    model: args.model?.trim(),
+    year: args.year,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const status = getStockStatus(args.quantity, args.lowStockThreshold);
+  if (status === "low_stock") {
+    await createNotification(ctx, {
+      type: "low_stock",
+      title: "Low Stock Alert",
+      message: `${args.name.trim()} is at low stock (${args.quantity} units).`,
+      userId: user._id,
+    });
+  } else if (status === "out_of_stock") {
+    await createNotification(ctx, {
+      type: "out_of_stock",
+      title: "Out of Stock Alert",
+      message: `${args.name.trim()} is out of stock.`,
+      userId: user._id,
+    });
+  }
+
+  return { id, customId, name: args.name.trim() };
+}
 
 export const list = query({
   args: {
@@ -31,6 +103,7 @@ export const list = query({
       machines = machines.filter(
         (m) =>
           m.name.toLowerCase().includes(term) ||
+          m.customId?.includes(term) ||
           m.sku.toLowerCase().includes(term) ||
           m.brand?.toLowerCase().includes(term) ||
           m.model?.toLowerCase().includes(term)
@@ -82,7 +155,6 @@ export const create = mutation({
     name: v.string(),
     categoryId: v.id("categories"),
     description: v.optional(v.string()),
-    sku: v.string(),
     costPrice: v.number(),
     sellingPrice: v.number(),
     quantity: v.number(),
@@ -95,55 +167,80 @@ export const create = mutation({
     const user = await requireAuth(ctx, args.token);
     if (!canWrite(user)) throw new Error("Permission denied.");
 
-    const sku = args.sku.trim().toUpperCase();
-    const existing = await ctx.db
-      .query("machines")
-      .withIndex("by_sku", (q) => q.eq("sku", sku))
-      .unique();
-
-    if (existing) throw new Error("A machine with this SKU already exists.");
-
     if (args.quantity < 0) throw new Error("Quantity cannot be negative.");
     if (args.costPrice < 0 || args.sellingPrice < 0) {
       throw new Error("Prices cannot be negative.");
     }
 
-    const now = Date.now();
-    const id = await ctx.db.insert("machines", {
-      name: args.name.trim(),
+    return await insertMachine(ctx, user, {
+      name: args.name,
       categoryId: args.categoryId,
-      description: args.description?.trim(),
-      sku,
+      description: args.description,
       costPrice: args.costPrice,
       sellingPrice: args.sellingPrice,
       quantity: args.quantity,
       lowStockThreshold: args.lowStockThreshold,
-      brand: args.brand?.trim(),
-      model: args.model?.trim(),
+      brand: args.brand,
+      model: args.model,
       year: args.year,
-      isActive: true,
-      createdAt: now,
-      updatedAt: now,
     });
+  },
+});
 
-    const status = getStockStatus(args.quantity, args.lowStockThreshold);
-    if (status === "low_stock") {
-      await createNotification(ctx, {
-        type: "low_stock",
-        title: "Low Stock Alert",
-        message: `${args.name.trim()} is at low stock (${args.quantity} units).`,
-        userId: user._id,
-      });
-    } else if (status === "out_of_stock") {
-      await createNotification(ctx, {
-        type: "out_of_stock",
-        title: "Out of Stock Alert",
-        message: `${args.name.trim()} is out of stock.`,
-        userId: user._id,
-      });
+export const bulkCreate = mutation({
+  args: {
+    token: v.string(),
+    categoryId: v.id("categories"),
+    lowStockThreshold: v.number(),
+    machines: v.array(bulkMachineInput),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuth(ctx, args.token);
+    if (!canWrite(user)) throw new Error("Permission denied.");
+
+    const category = await ctx.db.get(args.categoryId);
+    if (!category) throw new Error("Category not found.");
+
+    if (args.machines.length === 0) {
+      throw new Error("Add at least one machine.");
     }
 
-    return id;
+    if (args.machines.length > 25) {
+      throw new Error("You can add up to 25 machines at once.");
+    }
+
+    if (args.lowStockThreshold < 0) {
+      throw new Error("Low stock threshold cannot be negative.");
+    }
+
+    const created = [];
+
+    for (const machine of args.machines) {
+      const name = machine.name.trim();
+      if (!name) throw new Error("Every machine must have a name.");
+
+      if (machine.quantity < 0) throw new Error("Quantity cannot be negative.");
+      if (machine.costPrice < 0 || machine.sellingPrice < 0) {
+        throw new Error("Prices cannot be negative.");
+      }
+
+      const result = await insertMachine(ctx, user, {
+        name,
+        categoryId: args.categoryId,
+        description: machine.description,
+        costPrice: machine.costPrice,
+        sellingPrice: machine.sellingPrice,
+        quantity: machine.quantity,
+        lowStockThreshold: args.lowStockThreshold,
+        brand: machine.brand,
+        model: machine.model,
+        year: machine.year,
+      });
+
+      created.push(result);
+    }
+
+    return { created, count: created.length };
   },
 });
 
@@ -238,6 +335,100 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(args.id);
+  },
+});
+
+export const bulkRemove = mutation({
+  args: {
+    token: v.string(),
+    ids: v.array(v.id("machines")),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuth(ctx, args.token);
+    if (!canDelete(user)) throw new Error("Permission denied.");
+
+    let deleted = 0;
+    let skipped = 0;
+
+    for (const id of args.ids) {
+      const sales = await ctx.db
+        .query("sales")
+        .withIndex("by_machine", (q) => q.eq("machineId", id))
+        .first();
+
+      if (sales) {
+        skipped++;
+        continue;
+      }
+
+      const machine = await ctx.db.get(id);
+      if (!machine) {
+        skipped++;
+        continue;
+      }
+
+      await ctx.db.delete(id);
+      deleted++;
+    }
+
+    if (deleted === 0 && args.ids.length > 0) {
+      throw new Error(
+        "No machines deleted. Machines with sales history must be deactivated instead."
+      );
+    }
+
+    return { deleted, skipped };
+  },
+});
+
+export const bulkSetActive = mutation({
+  args: {
+    token: v.string(),
+    ids: v.array(v.id("machines")),
+    isActive: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuth(ctx, args.token);
+    if (!canWrite(user)) throw new Error("Permission denied.");
+
+    const now = Date.now();
+    let updated = 0;
+
+    for (const id of args.ids) {
+      const machine = await ctx.db.get(id);
+      if (!machine) continue;
+      await ctx.db.patch(id, { isActive: args.isActive, updatedAt: now });
+      updated++;
+    }
+
+    return { updated };
+  },
+});
+
+export const bulkUpdateCategory = mutation({
+  args: {
+    token: v.string(),
+    ids: v.array(v.id("machines")),
+    categoryId: v.id("categories"),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAuth(ctx, args.token);
+    if (!canWrite(user)) throw new Error("Permission denied.");
+
+    const category = await ctx.db.get(args.categoryId);
+    if (!category) throw new Error("Category not found.");
+
+    const now = Date.now();
+    let updated = 0;
+
+    for (const id of args.ids) {
+      const machine = await ctx.db.get(id);
+      if (!machine) continue;
+      await ctx.db.patch(id, { categoryId: args.categoryId, updatedAt: now });
+      updated++;
+    }
+
+    return { updated };
   },
 });
 

@@ -48,7 +48,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-colors focus:bg-orange-50 focus:text-orange-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:bg-orange-950/50 dark:focus:text-orange-200",
+      "relative flex cursor-default select-none items-center rounded-md px-2 py-1.5 text-sm outline-none transition-colors focus:bg-yellow-50 focus:text-yellow-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:bg-yellow-950/50 dark:focus:text-yellow-200",
       inset && "pl-8",
       className
     )}
@@ -64,7 +64,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-orange-50 focus:text-orange-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:bg-orange-950/50 dark:focus:text-orange-200",
+      "relative flex cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-yellow-50 focus:text-yellow-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:focus:bg-yellow-950/50 dark:focus:text-yellow-200",
       className
     )}
     checked={checked}

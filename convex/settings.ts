@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireAuth, requireRole } from "./lib/auth";
+import { requireAdmin, requireAuth } from "./lib/auth";
 
 export const get = query({
   args: {
@@ -37,7 +37,7 @@ export const set = mutation({
   },
   handler: async (ctx, args) => {
     const user = await requireAuth(ctx, args.token);
-    requireRole(user, ["admin"]);
+    requireAdmin(user);
 
     const existing = await ctx.db
       .query("settings")

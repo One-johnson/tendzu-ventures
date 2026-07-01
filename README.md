@@ -9,19 +9,18 @@ Heavy Equipment Inventory & Sales Management System for a Ghanaian company selli
 - **Tailwind CSS v4**
 - **ShadCN UI** (custom components)
 - **Convex** (database & backend)
-- **Custom Authentication** with RBAC
+- **Custom Authentication** (admin-only)
 - **Vercel** (deployment)
 
 ## Features
 
-- Secure administrator login with protected routes
-- Dashboard with real-time business metrics
-- Machine inventory management (CRUD, search, filter, stock status)
+- Dashboard with inventory metrics, revenue, profit, and charts
+- Machine inventory with detail view, CRUD, search, and stock status
 - Stock restocking with history tracking
-- Sales management with auto-generated invoices
-- Sales history with date filters
-- Business reports with PDF & Excel export
+- Sales hub with profit tracking, charts, history, and invoice PDF download
+- Business reports with PDF & Excel export (including profit)
 - In-app notifications for sales, restocking, and stock alerts
+- Account settings (`/account`) and app settings (`/settings`)
 
 ## Getting Started
 
@@ -56,7 +55,14 @@ Default admin credentials:
 - **Email:** `admin@tendzuventures.com`
 - **Password:** `Admin@123`
 
-> Change the default password after first login in production.
+> Change the default password after first login at `/account`.
+
+If upgrading an existing database, run once:
+
+```bash
+npx convex run seed:migrateToAdminOnly
+npx convex run seed:backfillSaleProfit
+```
 
 ### 4. Run the development server
 
@@ -89,6 +95,8 @@ npx convex deploy
 
 ```bash
 npx convex run seed:seedDatabase --prod
+npx convex run seed:migrateToAdminOnly --prod
+npx convex run seed:backfillSaleProfit --prod
 ```
 
 ## Project Structure
@@ -106,7 +114,7 @@ npx convex run seed:seedDatabase --prod
 
 - Machine quantities update automatically after sales and restocking
 - Sales cannot exceed available stock
-- Revenue is calculated automatically from selling price × quantity
+- Revenue and profit are calculated from selling price and cost price
 - Invoice numbers follow format `TV-YYYY-NNNNN`
 - Low stock alerts trigger when quantity ≤ configurable threshold
 

@@ -52,7 +52,7 @@ export const getChartData = query({
     ].filter((item) => item.value > 0);
 
     const now = new Date();
-    const dailyRevenue: { date: string; revenue: number; units: number }[] = [];
+    const dailyRevenue: { date: string; revenue: number; profit: number; units: number }[] = [];
 
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
@@ -62,10 +62,16 @@ export const getChartData = query({
       const dayEnd = dayStart + 24 * 60 * 60 * 1000;
 
       let revenue = 0;
+      let profit = 0;
       let units = 0;
       for (const sale of sales) {
         if (sale.saleDate >= dayStart && sale.saleDate < dayEnd) {
           revenue += sale.totalAmount;
+          profit +=
+            sale.totalProfit ??
+            (sale.unitCostPrice !== undefined
+              ? (sale.unitPrice - sale.unitCostPrice) * sale.quantity
+              : 0);
           units += sale.quantity;
         }
       }
@@ -73,16 +79,18 @@ export const getChartData = query({
       dailyRevenue.push({
         date: d.toLocaleDateString("en-GH", { weekday: "short", month: "short", day: "numeric" }),
         revenue,
+        profit,
         units,
       });
     }
 
     const revenueComparison = [
-      { period: "Today", revenue: dailyRevenue[6]?.revenue ?? 0 },
-      { period: "Yesterday", revenue: dailyRevenue[5]?.revenue ?? 0 },
+      { period: "Today", revenue: dailyRevenue[6]?.revenue ?? 0, profit: dailyRevenue[6]?.profit ?? 0 },
+      { period: "Yesterday", revenue: dailyRevenue[5]?.revenue ?? 0, profit: dailyRevenue[5]?.profit ?? 0 },
       {
         period: "This Week",
         revenue: dailyRevenue.reduce((sum, d) => sum + d.revenue, 0),
+        profit: dailyRevenue.reduce((sum, d) => sum + d.profit, 0),
       },
     ];
 

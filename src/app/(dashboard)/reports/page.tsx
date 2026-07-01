@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useSessionToken } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -21,12 +22,35 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency, formatDateOnly, fromInputDate, toInputDate } from "@/lib/format";
 import { getStockStatusLabel } from "@/lib/stock";
 import { exportToPDF, exportToExcel } from "@/lib/export";
+import { getSaleProfit } from "@/lib/sales";
 import type { SaleRecord, StockStatus } from "@/types";
-import { FileDown, FileSpreadsheet, FileBarChart } from "lucide-react";
+import { FileDown, FileSpreadsheet, FileBarChart, Download } from "lucide-react";
 import { RevenueComparisonChart } from "@/components/charts/dashboard-charts";
 import { FadeIn } from "@/components/motion/page-wrapper";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+
+interface ExportColumn {
+  header: string;
+  key: string;
+}
+
+interface ExportAction {
+  label: string;
+  type: "pdf" | "excel";
+  title: string;
+  columns: ExportColumn[];
+  rows: Array<object>;
+  filename: string;
+}
 
 interface InventoryReportRow {
+  customId: string;
   name: string;
   sku: string;
   category: string;
@@ -39,6 +63,7 @@ interface InventoryReportRow {
 }
 
 interface StockAlertRow {
+  customId: string;
   name: string;
   sku: string;
   category: string;
@@ -56,15 +81,17 @@ interface BestSellingRow {
 }
 
 interface RevenueSummary {
-  daily: { revenue: number; units: number; transactions: number };
-  weekly: { revenue: number; units: number; transactions: number };
-  monthly: { revenue: number; units: number; transactions: number };
-  allTime: { revenue: number; units: number; transactions: number };
+  daily: { revenue: number; profit: number; units: number; transactions: number };
+  weekly: { revenue: number; profit: number; units: number; transactions: number };
+  monthly: { revenue: number; profit: number; units: number; transactions: number };
+  allTime: { revenue: number; profit: number; units: number; transactions: number };
 }
 
 export default function ReportsPage() {
   const token = useSessionToken();
   const [salesPeriod, setSalesPeriod] = useState<"daily" | "weekly" | "monthly" | "custom">("monthly");
+  const [activeTab, setActiveTab] = useState("inventory");
+  const [exportSheetOpen, setExportSheetOpen] = useState(false);
   const [startDate, setStartDate] = useState(toInputDate(Date.now() - 30 * 24 * 60 * 60 * 1000));
   const [endDate, setEndDate] = useState(toInputDate(Date.now()));
 
@@ -88,6 +115,7 @@ export default function ReportsPage() {
           totalSales: number;
           totalUnits: number;
           totalRevenue: number;
+          totalProfit: number;
           averageOrderValue: number;
         };
       }
@@ -96,14 +124,14 @@ export default function ReportsPage() {
   const bestSelling = useQuery(api.reports.bestSellingReport, token ? { token, limit: 10 } : "skip") as BestSellingRow[] | undefined;
 
   const chartData = useQuery(api.dashboard.getChartData, token ? { token } : "skip") as
-    | { revenueComparison: { period: string; revenue: number }[] }
+    | { revenueComparison: { period: string; revenue: number; profit?: number }[] }
     | undefined;
 
   if (!inventory || !lowStock || !outOfStock || !salesReport || !revenueSummary || !bestSelling || !chartData) {
     return <PageLoader />;
   }
 
-  const handleExport = (
+  const handleExport = async (
     type: "pdf" | "excel",
     title: string,
     columns: { header: string; key: string }[],
@@ -111,9 +139,165 @@ export default function ReportsPage() {
     filename: string
   ) => {
     if (type === "pdf") {
-      exportToPDF(title, columns, rows, filename);
+      await exportToPDF(title, columns, rows, filename);
     } else {
       exportToExcel(title, columns, rows, filename);
+    }
+    setExportSheetOpen(false);
+  };
+
+  const exportActionsForTab = (): ExportAction[] => {
+    switch (activeTab) {
+      case "inventory":
+        return [
+          {
+            label: "Export PDF",
+            type: "pdf",
+            title: "Inventory Report",
+            columns: [
+              { header: "ID", key: "customId" },
+              { header: "Name", key: "name" },
+              { header: "SKU", key: "sku" },
+              { header: "Category", key: "category" },
+              { header: "Qty", key: "quantity" },
+              { header: "Cost", key: "costPrice" },
+              { header: "Price", key: "sellingPrice" },
+              { header: "Status", key: "status" },
+            ],
+            rows: inventory.map((r) => ({
+              ...r,
+              costPrice: formatCurrency(r.costPrice),
+              sellingPrice: formatCurrency(r.sellingPrice),
+              status: getStockStatusLabel(r.status),
+            })),
+            filename: "inventory-report",
+          },
+          {
+            label: "Export Excel",
+            type: "excel",
+            title: "Inventory",
+            columns: [
+              { header: "ID", key: "customId" },
+              { header: "Name", key: "name" },
+              { header: "SKU", key: "sku" },
+              { header: "Category", key: "category" },
+              { header: "Quantity", key: "quantity" },
+              { header: "Cost Price", key: "costPrice" },
+              { header: "Selling Price", key: "sellingPrice" },
+              { header: "Status", key: "status" },
+            ],
+            rows: inventory.map((r) => ({
+              ...r,
+              status: getStockStatusLabel(r.status),
+            })),
+            filename: "inventory-report",
+          },
+        ];
+      case "low-stock":
+        return [
+          {
+            label: "Export PDF",
+            type: "pdf",
+            title: "Low Stock Report",
+            columns: [
+              { header: "ID", key: "customId" },
+              { header: "Name", key: "name" },
+              { header: "SKU", key: "sku" },
+              { header: "Qty", key: "quantity" },
+              { header: "Threshold", key: "threshold" },
+            ],
+            rows: lowStock,
+            filename: "low-stock-report",
+          },
+        ];
+      case "out-of-stock":
+        return [
+          {
+            label: "Export PDF",
+            type: "pdf",
+            title: "Out of Stock Report",
+            columns: [
+              { header: "ID", key: "customId" },
+              { header: "Name", key: "name" },
+              { header: "SKU", key: "sku" },
+              { header: "Category", key: "category" },
+              { header: "Price", key: "sellingPrice" },
+            ],
+            rows: outOfStock.map((r) => ({
+              ...r,
+              sellingPrice: formatCurrency(r.sellingPrice),
+            })),
+            filename: "out-of-stock-report",
+          },
+        ];
+      case "sales":
+        return [
+          {
+            label: "Export Excel",
+            type: "excel",
+            title: "Sales Report",
+            columns: [
+              { header: "Invoice", key: "invoiceNumber" },
+              { header: "Machine", key: "machineName" },
+              { header: "Qty", key: "quantity" },
+              { header: "Total", key: "totalAmount" },
+              { header: "Profit", key: "profit" },
+              { header: "Salesperson", key: "salesperson" },
+            ],
+            rows: salesReport.sales.map((s) => ({
+              invoiceNumber: s.invoiceNumber,
+              machineName: s.machineName,
+              quantity: s.quantity,
+              totalAmount: formatCurrency(s.totalAmount),
+              profit: formatCurrency(getSaleProfit(s)),
+              salesperson: s.salesperson,
+            })),
+            filename: "sales-report",
+          },
+          {
+            label: "Export PDF",
+            type: "pdf",
+            title: "Sales Report",
+            columns: [
+              { header: "Invoice", key: "invoiceNumber" },
+              { header: "Machine", key: "machineName" },
+              { header: "Qty", key: "quantity" },
+              { header: "Total", key: "totalAmount" },
+              { header: "Profit", key: "profit" },
+              { header: "Salesperson", key: "salesperson" },
+            ],
+            rows: salesReport.sales.map((s) => ({
+              invoiceNumber: s.invoiceNumber,
+              machineName: s.machineName,
+              quantity: s.quantity,
+              totalAmount: formatCurrency(s.totalAmount),
+              profit: formatCurrency(getSaleProfit(s)),
+              salesperson: s.salesperson,
+            })),
+            filename: "sales-report",
+          },
+        ];
+      case "best-selling":
+        return [
+          {
+            label: "Export PDF",
+            type: "pdf",
+            title: "Best Selling Report",
+            columns: [
+              { header: "Machine", key: "machineName" },
+              { header: "Units Sold", key: "totalQuantity" },
+              { header: "Revenue", key: "totalRevenue" },
+              { header: "Transactions", key: "transactions" },
+            ],
+            rows: bestSelling.map((r) => ({
+              ...r,
+              totalRevenue: formatCurrency(r.totalRevenue),
+            })),
+            filename: "best-selling-report",
+          },
+        ];
+      default:
+        return [];
     }
   };
 
@@ -126,7 +310,7 @@ export default function ReportsPage() {
         </div>
       </FadeIn>
 
-      <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+      <div className="grid gap-3 sm:grid-cols-3 sm:gap-4" data-tour="reports-summary">
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground">Daily Revenue</CardTitle>
@@ -134,7 +318,8 @@ export default function ReportsPage() {
           <CardContent>
             <p className="text-xl font-bold sm:text-2xl">{formatCurrency(revenueSummary.daily.revenue)}</p>
             <p className="text-xs text-muted-foreground">
-              {revenueSummary.daily.transactions} transactions
+              {revenueSummary.daily.transactions} transactions · Profit:{" "}
+              {formatCurrency(revenueSummary.daily.profit)}
             </p>
           </CardContent>
         </Card>
@@ -145,7 +330,8 @@ export default function ReportsPage() {
           <CardContent>
             <p className="text-xl font-bold sm:text-2xl">{formatCurrency(revenueSummary.weekly.revenue)}</p>
             <p className="text-xs text-muted-foreground">
-              {revenueSummary.weekly.transactions} transactions
+              {revenueSummary.weekly.transactions} transactions · Profit:{" "}
+              {formatCurrency(revenueSummary.weekly.profit)}
             </p>
           </CardContent>
         </Card>
@@ -156,7 +342,8 @@ export default function ReportsPage() {
           <CardContent>
             <p className="text-xl font-bold sm:text-2xl">{formatCurrency(revenueSummary.monthly.revenue)}</p>
             <p className="text-xs text-muted-foreground">
-              {revenueSummary.monthly.transactions} transactions
+              {revenueSummary.monthly.transactions} transactions · Profit:{" "}
+              {formatCurrency(revenueSummary.monthly.profit)}
             </p>
           </CardContent>
         </Card>
@@ -164,17 +351,30 @@ export default function ReportsPage() {
 
       <RevenueComparisonChart data={chartData.revenueComparison} />
 
-      <Tabs defaultValue="inventory">
-        <TabsList className="flex h-auto flex-wrap gap-1">
-          <TabsTrigger value="inventory">Inventory</TabsTrigger>
-          <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
-          <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
-          <TabsTrigger value="sales">Sales</TabsTrigger>
-          <TabsTrigger value="best-selling">Best Selling</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <TabsList className="flex h-auto flex-wrap gap-1">
+            <TabsTrigger value="inventory">Inventory</TabsTrigger>
+            <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
+            <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
+            <TabsTrigger value="sales">Sales</TabsTrigger>
+            <TabsTrigger value="best-selling">Best Selling</TabsTrigger>
+          </TabsList>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full touch-manipulation sm:hidden"
+            data-tour="reports-export"
+            onClick={() => setExportSheetOpen(true)}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Export Report
+          </Button>
+        </div>
 
         <TabsContent value="inventory" className="space-y-4">
-          <div className="flex gap-2">
+          <div className="hidden gap-2 sm:flex" data-tour="reports-export">
             <Button
               variant="outline"
               size="sm"
@@ -183,6 +383,7 @@ export default function ReportsPage() {
                   "pdf",
                   "Inventory Report",
                   [
+                    { header: "ID", key: "customId" },
                     { header: "Name", key: "name" },
                     { header: "SKU", key: "sku" },
                     { header: "Category", key: "category" },
@@ -211,6 +412,7 @@ export default function ReportsPage() {
                   "excel",
                   "Inventory",
                   [
+                    { header: "ID", key: "customId" },
                     { header: "Name", key: "name" },
                     { header: "SKU", key: "sku" },
                     { header: "Category", key: "category" },
@@ -231,8 +433,9 @@ export default function ReportsPage() {
             </Button>
           </div>
           <ReportTable
-            headers={["Name", "SKU", "Category", "Qty", "Cost", "Price", "Status"]}
+            headers={["ID", "Name", "SKU", "Category", "Qty", "Cost", "Price", "Status"]}
             rows={inventory.map((r) => [
+              r.customId,
               r.name,
               r.sku,
               r.category,
@@ -246,7 +449,7 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="low-stock" className="space-y-4">
-          <div className="flex gap-2">
+          <div className="hidden gap-2 sm:flex">
             <Button
               variant="outline"
               size="sm"
@@ -255,6 +458,7 @@ export default function ReportsPage() {
                   "pdf",
                   "Low Stock Report",
                   [
+                    { header: "ID", key: "customId" },
                     { header: "Name", key: "name" },
                     { header: "SKU", key: "sku" },
                     { header: "Qty", key: "quantity" },
@@ -269,8 +473,9 @@ export default function ReportsPage() {
             </Button>
           </div>
           <ReportTable
-            headers={["Name", "SKU", "Category", "Qty", "Threshold", "Price"]}
+            headers={["ID", "Name", "SKU", "Category", "Qty", "Threshold", "Price"]}
             rows={lowStock.map((r) => [
+              r.customId,
               r.name,
               r.sku,
               r.category,
@@ -284,8 +489,9 @@ export default function ReportsPage() {
 
         <TabsContent value="out-of-stock" className="space-y-4">
           <ReportTable
-            headers={["Name", "SKU", "Category", "Price", "Last Updated"]}
+            headers={["ID", "Name", "SKU", "Category", "Price", "Last Updated"]}
             rows={outOfStock.map((r) => [
+              r.customId,
               r.name,
               r.sku,
               r.category,
@@ -310,36 +516,42 @@ export default function ReportsPage() {
             ))}
             {salesPeriod === "custom" && (
               <>
-                <Input type="date" className="w-40" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                <Input type="date" className="w-40" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                <DatePicker value={startDate} onChange={setStartDate} className="w-48" />
+                <DatePicker value={endDate} onChange={setEndDate} className="w-48" />
               </>
             )}
           </div>
           <Card>
-            <CardContent className="grid gap-4 pt-6 sm:grid-cols-4">
+            <CardContent className="grid gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-5">
               <div>
-                <p className="text-sm text-slate-500">Transactions</p>
+                <p className="text-sm text-muted-foreground">Transactions</p>
                 <p className="text-xl font-bold">{salesReport.summary.totalSales}</p>
               </div>
               <div>
-                <p className="text-sm text-slate-500">Units Sold</p>
+                <p className="text-sm text-muted-foreground">Units Sold</p>
                 <p className="text-xl font-bold">{salesReport.summary.totalUnits}</p>
               </div>
               <div>
-                <p className="text-sm text-slate-500">Total Revenue</p>
+                <p className="text-sm text-muted-foreground">Total Revenue</p>
                 <p className="text-xl font-bold">
                   {formatCurrency(salesReport.summary.totalRevenue)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-500">Avg. Order Value</p>
+                <p className="text-sm text-muted-foreground">Total Profit</p>
+                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(salesReport.summary.totalProfit)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Avg. Order Value</p>
                 <p className="text-xl font-bold">
                   {formatCurrency(salesReport.summary.averageOrderValue)}
                 </p>
               </div>
             </CardContent>
           </Card>
-          <div className="flex gap-2">
+          <div className="hidden gap-2 sm:flex">
             <Button
               variant="outline"
               size="sm"
@@ -352,6 +564,7 @@ export default function ReportsPage() {
                     { header: "Machine", key: "machineName" },
                     { header: "Qty", key: "quantity" },
                     { header: "Total", key: "totalAmount" },
+                    { header: "Profit", key: "profit" },
                     { header: "Salesperson", key: "salesperson" },
                   ],
                   salesReport.sales.map((s) => ({
@@ -359,6 +572,7 @@ export default function ReportsPage() {
                     machineName: s.machineName,
                     quantity: s.quantity,
                     totalAmount: formatCurrency(s.totalAmount),
+                    profit: formatCurrency(getSaleProfit(s)),
                     salesperson: s.salesperson,
                   })),
                   "sales-report"
@@ -369,12 +583,13 @@ export default function ReportsPage() {
             </Button>
           </div>
           <ReportTable
-            headers={["Invoice", "Machine", "Qty", "Total", "Salesperson", "Date"]}
+            headers={["Invoice", "Machine", "Qty", "Total", "Profit", "Salesperson", "Date"]}
             rows={salesReport.sales.map((s) => [
               s.invoiceNumber,
               s.machineName,
               s.quantity,
               formatCurrency(s.totalAmount),
+              formatCurrency(getSaleProfit(s)),
               s.salesperson,
               formatDateOnly(s.saleDate),
             ])}
@@ -395,6 +610,46 @@ export default function ReportsPage() {
           />
         </TabsContent>
       </Tabs>
+
+      <Sheet open={exportSheetOpen} onOpenChange={setExportSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-2xl">
+          <SheetHeader>
+            <SheetTitle>Export Report</SheetTitle>
+            <SheetDescription>
+              Download the current report tab as PDF or Excel on your device.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-2 py-2">
+            {exportActionsForTab().length === 0 ? (
+              <p className="text-sm text-muted-foreground">No export options for this tab.</p>
+            ) : (
+              exportActionsForTab().map((action) => (
+                <Button
+                  key={`${action.type}-${action.label}`}
+                  variant="outline"
+                  className="h-11 w-full justify-start touch-manipulation"
+                  onClick={() =>
+                    handleExport(
+                      action.type,
+                      action.title,
+                      action.columns,
+                      action.rows,
+                      action.filename
+                    )
+                  }
+                >
+                  {action.type === "pdf" ? (
+                    <FileDown className="mr-2 h-4 w-4" />
+                  ) : (
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  )}
+                  {action.label}
+                </Button>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
