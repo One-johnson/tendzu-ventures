@@ -11,6 +11,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { exportInvoicePDF } from "@/lib/export";
+import { INVOICE_GENERATION_ENABLED } from "@/lib/constants";
 import { formatCurrency, formatDateOnly } from "@/lib/format";
 import { getSaleProfit } from "@/lib/sales";
 import { searchRoutes } from "@/lib/search-routes";
@@ -101,14 +102,16 @@ export function SaleDetailSheet({ sale, open, onOpenChange }: SaleDetailSheetPro
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Close
             </Button>
-            <Button variant="outline" onClick={handleDownloadInvoice} disabled={downloading}>
-              {downloading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <FileDown className="mr-2 h-4 w-4" />
-              )}
-              Download invoice
-            </Button>
+            {INVOICE_GENERATION_ENABLED && (
+              <Button variant="outline" onClick={handleDownloadInvoice} disabled={downloading}>
+                {downloading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="mr-2 h-4 w-4" />
+                )}
+                Download invoice
+              </Button>
+            )}
             <Button asChild>
               <Link href={searchRoutes.machine(sale.machineId)}>
                 <Package className="mr-2 h-4 w-4" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { ColumnDef } from "@tanstack/react-table";
@@ -32,12 +32,11 @@ import {
 } from "@/components/data-table/mobile-card-list";
 import { BulkAddMachinesSheet } from "@/components/inventory/bulk-add-machines-sheet";
 import { MachineDetailSheet } from "@/components/inventory/machine-detail-sheet";
-import { BulkActionsBar } from "@/components/shared/bulk-actions-bar";
 import { FadeIn } from "@/components/motion/page-wrapper";
 import { getFriendlyErrorMessage } from "@/lib/errors";
 import { formatCurrency } from "@/lib/format";
 import { getStockStatusColor, getStockStatusLabel } from "@/lib/stock";
-import { Plus, Search, Pencil, Trash2, Package, Ban, CheckCircle, Layers } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Package, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { useDeepLinkParam } from "@/hooks/use-deep-link-param";
 import { useRowHighlight } from "@/hooks/use-row-highlight";
@@ -67,30 +66,12 @@ export default function InventoryPage() {
   const [editingId, setEditingId] = useState<Id<"machines"> | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [selectedMachines, setSelectedMachines] = useState<MachineWithMeta[]>([]);
-  const [bulkCategoryId, setBulkCategoryId] = useState("");
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [detailMachine, setDetailMachine] = useState<MachineWithMeta | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { targetId: machineTargetId, consumeParam: consumeMachineParam } = useDeepLinkParam("machine");
   const { highlightRowId, setHighlightRowId } = useRowHighlight();
   const deepLinkHandledRef = useRef<string | null>(null);
-
-  const handleSelectedRowsChange = useCallback((rows: MachineWithMeta[]) => {
-    setSelectedMachines((prev) => {
-      const prevIds = prev
-        .map((row) => row._id)
-        .sort()
-        .join("|");
-      const nextIds = rows
-        .map((row) => row._id)
-        .sort()
-        .join("|");
-      if (prevIds === nextIds) return prev;
-      return rows;
-    });
-  }, []);
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -133,16 +114,13 @@ export default function InventoryPage() {
   const createMachine = useMutation(api.machines.create);
   const updateMachine = useMutation(api.machines.update);
   const removeMachine = useMutation(api.machines.remove);
-  const bulkRemoveMachines = useMutation(api.machines.bulkRemove);
-  const bulkSetActive = useMutation(api.machines.bulkSetActive);
-  const bulkUpdateCategory = useMutation(api.machines.bulkUpdateCategory);
-
-  const selectedIds = useMemo(
-    () => selectedMachines.map((machine) => machine._id as Id<"machines">),
-    [selectedMachines]
-  );
 
   const filteredCount = machines?.length ?? 0;
+
+  const openDetail = (machine: MachineWithMeta) => {
+    setDetailMachine(machine);
+    setDetailOpen(true);
+  };
 
   const openCreate = () => {
     setEditingId(null);
@@ -193,36 +171,53 @@ export default function InventoryPage() {
     consumeMachineParam();
   }, [machineTargetId, deepLinkMachine, consumeMachineParam, setHighlightRowId]);
 
+  const parseOptionalNumber = (value: string, fallback: number) => {
+    if (value.trim() === "") return fallback;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+
   const handleSave = async () => {
     if (!token) return;
     setSaving(true);
     try {
-      const payload = {
-        token,
-        name: form.name,
-        categoryId: form.categoryId as Id<"categories">,
-        description: form.description || undefined,
-        costPrice: Number(form.costPrice),
-        sellingPrice: Number(form.sellingPrice),
-        lowStockThreshold: Number(form.lowStockThreshold),
-        brand: form.brand || undefined,
-        model: form.model || undefined,
-        year: form.year ? Number(form.year) : undefined,
-      };
-
       if (editingId) {
         const machine = machines?.find((m) => m._id === editingId);
         await updateMachine({
-          ...payload,
+          token,
           id: editingId,
+          name: form.name,
+          categoryId: form.categoryId as Id<"categories">,
+          description: form.description || undefined,
+          costPrice: Number(form.costPrice),
+          sellingPrice: Number(form.sellingPrice),
+          lowStockThreshold: Number(form.lowStockThreshold),
+          brand: form.brand || undefined,
+          model: form.model || undefined,
+          year: form.year ? Number(form.year) : undefined,
           sku: machine?.sku ?? `TV-0000`,
           isActive: form.isActive,
         });
         toast.success("Machine updated successfully");
       } else {
+        const categoryId = (form.categoryId || categories?.[0]?._id) as Id<"categories"> | undefined;
+        if (!categoryId) {
+          toast.error("Create a category before adding machines");
+          return;
+        }
+
         const result = await createMachine({
-          ...payload,
-          quantity: Number(form.quantity),
+          token,
+          name: form.name.trim() || "Untitled Machine",
+          categoryId,
+          description: form.description.trim() || undefined,
+          costPrice: parseOptionalNumber(form.costPrice, 0),
+          sellingPrice: parseOptionalNumber(form.sellingPrice, 0),
+          quantity: parseOptionalNumber(form.quantity, 0),
+          lowStockThreshold: parseOptionalNumber(form.lowStockThreshold, defaultThreshold ?? 5),
+          brand: form.brand.trim() || undefined,
+          model: form.model.trim() || undefined,
+          year: form.year ? Number(form.year) : undefined,
         });
         toast.success(`Machine added with ID ${result.customId}`);
       }
@@ -246,51 +241,6 @@ export default function InventoryPage() {
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (!token || selectedIds.length === 0) return;
-    try {
-      await bulkRemoveMachines({ token, ids: selectedIds });
-      toast.success("Selected machines deleted");
-      clearSelection();
-    } catch (error) {
-      toast.error(getFriendlyErrorMessage(error, "Failed to delete machines"));
-      throw error;
-    }
-  };
-
-  const clearSelection = () => setSelectedMachines([]);
-
-  const runBulkAction = async (action: () => Promise<unknown>, success: string) => {
-    if (!token || selectedIds.length === 0) return;
-    try {
-      await action();
-      toast.success(success);
-      clearSelection();
-    } catch (error) {
-      toast.error(getFriendlyErrorMessage(error, "Bulk action failed"));
-      throw error;
-    }
-  };
-
-  const handleBulkActivate = (isActive: boolean) =>
-    runBulkAction(
-      () => bulkSetActive({ token: token!, ids: selectedIds, isActive }),
-      isActive ? "Selected machines activated" : "Selected machines deactivated"
-    );
-
-  const handleBulkCategory = () => {
-    if (!token || !bulkCategoryId || selectedIds.length === 0) return;
-    runBulkAction(
-      () =>
-        bulkUpdateCategory({
-          token,
-          ids: selectedIds,
-          categoryId: bulkCategoryId as Id<"categories">,
-        }),
-      "Category updated for selected machines"
-    );
-  };
-
   const categoryOptions = useMemo(() => categories ?? [], [categories]);
 
   const columns = useMemo<ColumnDef<MachineWithMeta>[]>(
@@ -299,21 +249,14 @@ export default function InventoryPage() {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Machine" />,
         cell: ({ row }) => (
-          <button
-            type="button"
-            className="text-left"
-            onClick={() => {
-              setDetailMachine(row.original);
-              setDetailOpen(true);
-            }}
-          >
-            <p className="font-medium text-primary hover:underline">{row.original.name}</p>
+          <div className="text-left">
+            <p className="font-medium text-foreground">{row.original.name}</p>
             {row.original.brand && (
               <p className="text-xs text-muted-foreground">
                 {row.original.brand} {row.original.model}
               </p>
             )}
-          </button>
+          </div>
         ),
       },
       {
@@ -366,10 +309,26 @@ export default function InventoryPage() {
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end gap-1">
-            <Button variant="ghost" size="icon" className="h-9 w-9 touch-manipulation" onClick={() => openEdit(row.original)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation();
+                openEdit(row.original);
+              }}
+            >
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 touch-manipulation" onClick={() => setDeleteId(row.original._id as Id<"machines">)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteId(row.original._id as Id<"machines">);
+              }}
+            >
               <Trash2 className="h-4 w-4 text-red-500" />
             </Button>
           </div>
@@ -448,36 +407,6 @@ export default function InventoryPage() {
         </Select>
       </div>
 
-      <BulkActionsBar count={selectedMachines.length} onClear={clearSelection}>
-        <Button size="sm" variant="secondary" onClick={() => handleBulkActivate(true)}>
-          <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
-          Activate
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => handleBulkActivate(false)}>
-          <Ban className="mr-1.5 h-3.5 w-3.5" />
-          Deactivate
-        </Button>
-        <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
-          <SelectTrigger className="h-8 w-40">
-            <SelectValue placeholder="Move to category" />
-          </SelectTrigger>
-          <SelectContent>
-            {categoryOptions.map((cat) => (
-              <SelectItem key={cat._id} value={cat._id}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button size="sm" variant="secondary" disabled={!bulkCategoryId} onClick={handleBulkCategory}>
-          Apply category
-        </Button>
-        <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
-          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-          Delete
-        </Button>
-      </BulkActionsBar>
-
       {machines.length === 0 ? (
         <EmptyState
           title="No machines found"
@@ -491,19 +420,34 @@ export default function InventoryPage() {
           searchPlaceholder="Filter table..."
           pageSize={10}
           emptyMessage="No machines match your filters"
-          enableRowSelection
           getRowId={(row) => row._id}
-          onSelectedRowsChange={handleSelectedRowsChange}
           highlightRowId={highlightRowId}
+          onRowClick={openDetail}
           mobileCard={(row) => (
-            <MobileCard>
+            <MobileCard onClick={() => openDetail(row.original)}>
               <div className="mb-2 flex items-start justify-between gap-2">
                 <p className="font-semibold text-foreground">{row.original.name}</p>
                 <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(row.original)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEdit(row.original);
+                    }}
+                  >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteId(row.original._id as Id<"machines">)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteId(row.original._id as Id<"machines">);
+                    }}
+                  >
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 </div>
@@ -537,11 +481,11 @@ export default function InventoryPage() {
               onClick={handleSave}
               disabled={
                 saving ||
-                !form.name ||
-                !form.categoryId ||
-                !form.costPrice ||
-                !form.sellingPrice ||
-                (!editingId && !form.quantity)
+                (!!editingId &&
+                  (!form.name ||
+                    !form.categoryId ||
+                    !form.costPrice ||
+                    !form.sellingPrice))
               }
             >
               {saving ? "Saving..." : editingId ? "Update" : "Add Machine"}
@@ -561,14 +505,14 @@ export default function InventoryPage() {
             </div>
           )}
           <div className="grid gap-2">
-            <Label>Machine Name *</Label>
+            <Label>{editingId ? "Machine Name *" : "Machine Name"}</Label>
             <Input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </div>
           <div className="grid gap-2">
-            <Label>Category *</Label>
+            <Label>{editingId ? "Category *" : "Category"}</Label>
             <Select
               value={form.categoryId}
               onValueChange={(v) => setForm({ ...form, categoryId: v })}
@@ -603,7 +547,7 @@ export default function InventoryPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="grid gap-2">
-              <Label>Cost Price (GHS) *</Label>
+              <Label>{editingId ? "Cost Price (GHS) *" : "Cost Price (GHS)"}</Label>
               <Input
                 type="number"
                 min="0"
@@ -612,7 +556,7 @@ export default function InventoryPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label>Selling Price (GHS) *</Label>
+              <Label>{editingId ? "Selling Price (GHS) *" : "Selling Price (GHS)"}</Label>
               <Input
                 type="number"
                 min="0"
@@ -632,7 +576,7 @@ export default function InventoryPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {!editingId && (
               <div className="grid gap-2">
-                <Label>Initial Quantity *</Label>
+                <Label>Initial Quantity</Label>
                 <Input
                   type="number"
                   min="0"
@@ -642,7 +586,7 @@ export default function InventoryPage() {
               </div>
             )}
             <div className="grid gap-2">
-              <Label>Low Stock Threshold *</Label>
+              <Label>{editingId ? "Low Stock Threshold *" : "Low Stock Threshold"}</Label>
               <Input
                 type="number"
                 min="0"
@@ -695,26 +639,6 @@ export default function InventoryPage() {
           </>
         }
         onConfirm={handleDelete}
-      />
-
-      <ConfirmDeleteDialog
-        open={bulkDeleteOpen}
-        onOpenChange={setBulkDeleteOpen}
-        title={`Delete ${selectedMachines.length} machines?`}
-        description={
-          <>
-            <p>
-              You are about to delete{" "}
-              <span className="font-medium text-foreground">
-                {selectedMachines.length} selected machines
-              </span>
-              .
-            </p>
-            <p>Machines with sales history will be skipped. This cannot be undone.</p>
-          </>
-        }
-        confirmLabel="Delete selected"
-        onConfirm={handleBulkDelete}
       />
     </div>
   );

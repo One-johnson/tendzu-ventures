@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import * as XLSX from "xlsx";
-import { APP_NAME } from "@/lib/constants";
+import { APP_NAME, INVOICE_GENERATION_ENABLED } from "@/lib/constants";
 import { getBrandLogoUrl } from "@/lib/brand";
 import { getSaleProfit } from "@/lib/sales";
 import type { SaleRecord } from "@/types";
@@ -42,6 +42,10 @@ export async function exportToPDF(
 }
 
 export async function exportInvoicePDF(sale: SaleRecord) {
+  if (!INVOICE_GENERATION_ENABLED) {
+    throw new Error("Invoice generation is currently disabled.");
+  }
+
   const [{ pdf }, { InvoiceDocument }] = await Promise.all([
     import("@react-pdf/renderer"),
     import("@/lib/pdf/invoice-document"),
