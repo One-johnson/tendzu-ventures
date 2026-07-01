@@ -62,7 +62,10 @@ export function MobileCard({
   return (
     <div
       onClick={onClick}
-      className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors active:bg-muted/50"
+      className={cn(
+        "rounded-xl border border-border bg-card p-4 shadow-sm transition-colors active:bg-muted/50",
+        onClick && "cursor-pointer"
+      )}
     >
       {children}
     </div>

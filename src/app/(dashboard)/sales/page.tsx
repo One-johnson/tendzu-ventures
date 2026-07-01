@@ -46,7 +46,7 @@ import { formatCurrency, formatDateOnly, fromInputDate, toInputDate } from "@/li
 import { getSaleProfit } from "@/lib/sales";
 import { useDeepLinkParam } from "@/hooks/use-deep-link-param";
 import { useRowHighlight } from "@/hooks/use-row-highlight";
-import { DollarSign, History, Plus, ShoppingCart, TrendingUp } from "lucide-react";
+import { DollarSign, History, Loader2, Plus, ShoppingCart, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SalesPage() {
@@ -113,6 +113,17 @@ export default function SalesPage() {
   ) as SaleRecord | null | undefined;
 
   const createSale = useMutation(api.sales.create);
+
+  const chartDataRef = useRef<typeof chartData>(undefined);
+  const salesRef = useRef<typeof sales>(undefined);
+
+  if (chartData !== undefined) chartDataRef.current = chartData;
+  if (sales !== undefined) salesRef.current = sales;
+
+  const displayChartData = chartData ?? chartDataRef.current;
+  const displaySales = sales ?? salesRef.current;
+  const chartRefreshing = chartData === undefined && chartDataRef.current !== undefined;
+  const salesRefreshing = sales === undefined && salesRef.current !== undefined;
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -297,12 +308,12 @@ export default function SalesPage() {
     }
   };
 
-  if (!machines || !categories || !overviewStats || !chartData || !sales) {
+  if (!machines || !categories || !overviewStats) {
     return <PageLoader />;
   }
 
-  const totalRevenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
-  const totalProfitSum = sales.reduce((sum, s) => sum + getSaleProfit(s), 0);
+  const totalRevenue = (displaySales ?? []).reduce((sum, s) => sum + s.totalAmount, 0);
+  const totalProfitSum = (displaySales ?? []).reduce((sum, s) => sum + getSaleProfit(s), 0);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -362,7 +373,12 @@ export default function SalesPage() {
         />
       </div>
 
-      <SalesTrendChart data={chartData} period={chartPeriod} onPeriodChange={setChartPeriod} />
+      <SalesTrendChart
+        data={displayChartData ?? []}
+        period={chartPeriod}
+        onPeriodChange={setChartPeriod}
+        isLoading={!displayChartData || chartRefreshing}
+      />
 
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
@@ -370,7 +386,7 @@ export default function SalesPage() {
             <div>
               <CardTitle className="text-base sm:text-lg">Sales History</CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
-                {sales.length} transactions · {formatCurrency(totalRevenue)} revenue ·{" "}
+                {(displaySales ?? []).length} transactions · {formatCurrency(totalRevenue)} revenue ·{" "}
                 {formatCurrency(totalProfitSum)} profit
               </p>
             </div>
@@ -412,17 +428,26 @@ export default function SalesPage() {
             )}
           </div>
 
-          {sales.length === 0 ? (
+          {!displaySales ? (
+            <div className="flex min-h-[240px] items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
+            </div>
+          ) : displaySales.length === 0 ? (
             <EmptyState
               title="No sales found"
               description="Record your first sale to begin tracking revenue and profit."
               icon={<History className="h-8 w-8" />}
             />
           ) : (
-            <div data-tour="sales-history-table">
+            <div className="relative" data-tour="sales-history-table">
+              {salesRefreshing && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60">
+                  <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
+                </div>
+              )}
               <DataTable
                 columns={columns}
-                data={sales}
+                data={displaySales}
                 searchPlaceholder="Search invoice, machine, salesperson..."
                 pageSize={10}
                 emptyMessage="No sales found"

@@ -20,7 +20,6 @@ import {
 import {
   RevenueTrendChart,
   StockBreakdownChart,
-  TopSellingChart,
 } from "@/components/charts/dashboard-charts";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { searchRoutes } from "@/lib/search-routes";
@@ -31,7 +30,6 @@ import type {
   RevenueStats,
   RestockingRecord,
   SaleRecord,
-  TopSellingRecord,
 } from "@/types";
 import {
   Package,
@@ -49,7 +47,6 @@ export default function DashboardPage() {
 
   const machineStats = useQuery(api.machines.stats, token ? { token } : "skip") as MachineStats | undefined;
   const revenueStats = useQuery(api.sales.revenueStats, token ? { token } : "skip") as RevenueStats | undefined;
-  const topSelling = useQuery(api.sales.topSelling, token ? { token, limit: 5 } : "skip") as TopSellingRecord[] | undefined;
   const overview = useQuery(api.dashboard.getOverview, token ? { token } : "skip") as
     | { recentSales: SaleRecord[]; recentRestocking: RestockingRecord[] }
     | undefined;
@@ -65,7 +62,6 @@ export default function DashboardPage() {
 
   const recentSales = overview?.recentSales ?? [];
   const recentRestocking = overview?.recentRestocking ?? [];
-  const topSellingData = topSelling ?? [];
 
   const salesColumns = useMemo<ColumnDef<SaleRecord>[]>(
     () => [
@@ -132,37 +128,6 @@ export default function DashboardPage() {
     []
   );
 
-  const topSellingColumns = useMemo<ColumnDef<TopSellingRecord & { rank: number }>[]>(
-    () => [
-      {
-        accessorKey: "rank",
-        header: "Rank",
-        cell: ({ row }) => (
-          <Badge variant={row.original.rank === 1 ? "default" : "secondary"}>
-            #{row.original.rank}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: "machineName",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Machine" />,
-        cell: ({ row }) => <span className="font-medium">{row.original.machineName}</span>,
-      },
-      {
-        accessorKey: "totalQuantity",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Units Sold" />,
-      },
-      {
-        accessorKey: "totalRevenue",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Revenue" />,
-        cell: ({ row }) => formatCurrency(row.original.totalRevenue),
-      },
-    ],
-    []
-  );
-
-  const topSellingWithRank = topSellingData.map((item, i) => ({ ...item, rank: i + 1 }));
-
   if (loading) return <PageLoader />;
 
   return (
@@ -201,10 +166,6 @@ export default function DashboardPage() {
           <StockBreakdownChart data={chartData.stockBreakdown} />
         </MotionCard>
       </div>
-
-      <MotionCard>
-        <TopSellingChart data={topSellingData} />
-      </MotionCard>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
         <Card className="border-border bg-card">
@@ -253,29 +214,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="border-border bg-card">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base sm:text-lg">Top Selling Machines</CardTitle>
-        </CardHeader>
-        <CardContent className="px-3 sm:px-6">
-          <DataTable
-            columns={topSellingColumns}
-            data={topSellingWithRank}
-            pageSize={5}
-            hideToolbar
-            emptyMessage="No sales data yet"
-            mobileCard={(row) => (
-              <MobileCard>
-                <MobileCardField label="Rank" value={getCellValue(row, "rank")} />
-                <MobileCardField label="Machine" value={getCellValue(row, "machineName")} />
-                <MobileCardField label="Units" value={getCellValue(row, "totalQuantity")} />
-                <MobileCardField label="Revenue" value={getCellValue(row, "totalRevenue")} />
-              </MobileCard>
-            )}
-          />
-        </CardContent>
-      </Card>
     </div>
   );
 }

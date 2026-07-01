@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useSessionToken } from "@/components/providers/auth-provider";
@@ -24,7 +24,7 @@ import { getStockStatusLabel } from "@/lib/stock";
 import { exportToPDF, exportToExcel } from "@/lib/export";
 import { getSaleProfit } from "@/lib/sales";
 import type { SaleRecord, StockStatus } from "@/types";
-import { FileDown, FileSpreadsheet, FileBarChart, Download } from "lucide-react";
+import { FileDown, FileSpreadsheet, FileBarChart, Download, Loader2 } from "lucide-react";
 import { RevenueComparisonChart } from "@/components/charts/dashboard-charts";
 import { FadeIn } from "@/components/motion/page-wrapper";
 import {
@@ -127,7 +127,14 @@ export default function ReportsPage() {
     | { revenueComparison: { period: string; revenue: number; profit?: number }[] }
     | undefined;
 
-  if (!inventory || !lowStock || !outOfStock || !salesReport || !revenueSummary || !bestSelling || !chartData) {
+  const salesReportRef = useRef<typeof salesReport>(undefined);
+
+  if (salesReport !== undefined) salesReportRef.current = salesReport;
+
+  const displaySalesReport = salesReport ?? salesReportRef.current;
+  const salesReportRefreshing = salesReport === undefined && salesReportRef.current !== undefined;
+
+  if (!inventory || !lowStock || !outOfStock || !revenueSummary || !bestSelling || !chartData) {
     return <PageLoader />;
   }
 
@@ -151,28 +158,6 @@ export default function ReportsPage() {
       case "inventory":
         return [
           {
-            label: "Export PDF",
-            type: "pdf",
-            title: "Inventory Report",
-            columns: [
-              { header: "ID", key: "customId" },
-              { header: "Name", key: "name" },
-              { header: "SKU", key: "sku" },
-              { header: "Category", key: "category" },
-              { header: "Qty", key: "quantity" },
-              { header: "Cost", key: "costPrice" },
-              { header: "Price", key: "sellingPrice" },
-              { header: "Status", key: "status" },
-            ],
-            rows: inventory.map((r) => ({
-              ...r,
-              costPrice: formatCurrency(r.costPrice),
-              sellingPrice: formatCurrency(r.sellingPrice),
-              status: getStockStatusLabel(r.status),
-            })),
-            filename: "inventory-report",
-          },
-          {
             label: "Export Excel",
             type: "excel",
             title: "Inventory",
@@ -194,22 +179,7 @@ export default function ReportsPage() {
           },
         ];
       case "low-stock":
-        return [
-          {
-            label: "Export PDF",
-            type: "pdf",
-            title: "Low Stock Report",
-            columns: [
-              { header: "ID", key: "customId" },
-              { header: "Name", key: "name" },
-              { header: "SKU", key: "sku" },
-              { header: "Qty", key: "quantity" },
-              { header: "Threshold", key: "threshold" },
-            ],
-            rows: lowStock,
-            filename: "low-stock-report",
-          },
-        ];
+        return [];
       case "out-of-stock":
         return [
           {
@@ -231,6 +201,7 @@ export default function ReportsPage() {
           },
         ];
       case "sales":
+        if (!displaySalesReport) return [];
         return [
           {
             label: "Export Excel",
@@ -244,7 +215,7 @@ export default function ReportsPage() {
               { header: "Profit", key: "profit" },
               { header: "Salesperson", key: "salesperson" },
             ],
-            rows: salesReport.sales.map((s) => ({
+            rows: displaySalesReport.sales.map((s) => ({
               invoiceNumber: s.invoiceNumber,
               machineName: s.machineName,
               quantity: s.quantity,
@@ -266,7 +237,7 @@ export default function ReportsPage() {
               { header: "Profit", key: "profit" },
               { header: "Salesperson", key: "salesperson" },
             ],
-            rows: salesReport.sales.map((s) => ({
+            rows: displaySalesReport.sales.map((s) => ({
               invoiceNumber: s.invoiceNumber,
               machineName: s.machineName,
               quantity: s.quantity,
@@ -380,35 +351,6 @@ export default function ReportsPage() {
               size="sm"
               onClick={() =>
                 handleExport(
-                  "pdf",
-                  "Inventory Report",
-                  [
-                    { header: "ID", key: "customId" },
-                    { header: "Name", key: "name" },
-                    { header: "SKU", key: "sku" },
-                    { header: "Category", key: "category" },
-                    { header: "Qty", key: "quantity" },
-                    { header: "Cost", key: "costPrice" },
-                    { header: "Price", key: "sellingPrice" },
-                    { header: "Status", key: "status" },
-                  ],
-                  inventory.map((r) => ({
-                    ...r,
-                    costPrice: formatCurrency(r.costPrice),
-                    sellingPrice: formatCurrency(r.sellingPrice),
-                    status: getStockStatusLabel(r.status),
-                  })),
-                  "inventory-report"
-                )
-              }
-            >
-              <FileDown className="mr-2 h-4 w-4" /> PDF
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                handleExport(
                   "excel",
                   "Inventory",
                   [
@@ -449,29 +391,6 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="low-stock" className="space-y-4">
-          <div className="hidden gap-2 sm:flex">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                handleExport(
-                  "pdf",
-                  "Low Stock Report",
-                  [
-                    { header: "ID", key: "customId" },
-                    { header: "Name", key: "name" },
-                    { header: "SKU", key: "sku" },
-                    { header: "Qty", key: "quantity" },
-                    { header: "Threshold", key: "threshold" },
-                  ],
-                  lowStock,
-                  "low-stock-report"
-                )
-              }
-            >
-              <FileDown className="mr-2 h-4 w-4" /> PDF
-            </Button>
-          </div>
           <ReportTable
             headers={["ID", "Name", "SKU", "Category", "Qty", "Threshold", "Price"]}
             rows={lowStock.map((r) => [
@@ -521,80 +440,94 @@ export default function ReportsPage() {
               </>
             )}
           </div>
-          <Card>
-            <CardContent className="grid gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-5">
-              <div>
-                <p className="text-sm text-muted-foreground">Transactions</p>
-                <p className="text-xl font-bold">{salesReport.summary.totalSales}</p>
+
+          {!displaySalesReport ? (
+            <div className="flex min-h-[240px] items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
+            </div>
+          ) : (
+            <div className="relative space-y-4">
+              {salesReportRefreshing && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60">
+                  <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
+                </div>
+              )}
+              <Card>
+                <CardContent className="grid gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-5">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Transactions</p>
+                    <p className="text-xl font-bold">{displaySalesReport.summary.totalSales}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Units Sold</p>
+                    <p className="text-xl font-bold">{displaySalesReport.summary.totalUnits}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Revenue</p>
+                    <p className="text-xl font-bold">
+                      {formatCurrency(displaySalesReport.summary.totalRevenue)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Profit</p>
+                    <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(displaySalesReport.summary.totalProfit)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg. Order Value</p>
+                    <p className="text-xl font-bold">
+                      {formatCurrency(displaySalesReport.summary.averageOrderValue)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="hidden gap-2 sm:flex">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    handleExport(
+                      "excel",
+                      "Sales Report",
+                      [
+                        { header: "Invoice", key: "invoiceNumber" },
+                        { header: "Machine", key: "machineName" },
+                        { header: "Qty", key: "quantity" },
+                        { header: "Total", key: "totalAmount" },
+                        { header: "Profit", key: "profit" },
+                        { header: "Salesperson", key: "salesperson" },
+                      ],
+                      displaySalesReport.sales.map((s) => ({
+                        invoiceNumber: s.invoiceNumber,
+                        machineName: s.machineName,
+                        quantity: s.quantity,
+                        totalAmount: formatCurrency(s.totalAmount),
+                        profit: formatCurrency(getSaleProfit(s)),
+                        salesperson: s.salesperson,
+                      })),
+                      "sales-report"
+                    )
+                  }
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel
+                </Button>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Units Sold</p>
-                <p className="text-xl font-bold">{salesReport.summary.totalUnits}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-xl font-bold">
-                  {formatCurrency(salesReport.summary.totalRevenue)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Profit</p>
-                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                  {formatCurrency(salesReport.summary.totalProfit)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Avg. Order Value</p>
-                <p className="text-xl font-bold">
-                  {formatCurrency(salesReport.summary.averageOrderValue)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <div className="hidden gap-2 sm:flex">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                handleExport(
-                  "excel",
-                  "Sales Report",
-                  [
-                    { header: "Invoice", key: "invoiceNumber" },
-                    { header: "Machine", key: "machineName" },
-                    { header: "Qty", key: "quantity" },
-                    { header: "Total", key: "totalAmount" },
-                    { header: "Profit", key: "profit" },
-                    { header: "Salesperson", key: "salesperson" },
-                  ],
-                  salesReport.sales.map((s) => ({
-                    invoiceNumber: s.invoiceNumber,
-                    machineName: s.machineName,
-                    quantity: s.quantity,
-                    totalAmount: formatCurrency(s.totalAmount),
-                    profit: formatCurrency(getSaleProfit(s)),
-                    salesperson: s.salesperson,
-                  })),
-                  "sales-report"
-                )
-              }
-            >
-              <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel
-            </Button>
-          </div>
-          <ReportTable
-            headers={["Invoice", "Machine", "Qty", "Total", "Profit", "Salesperson", "Date"]}
-            rows={salesReport.sales.map((s) => [
-              s.invoiceNumber,
-              s.machineName,
-              s.quantity,
-              formatCurrency(s.totalAmount),
-              formatCurrency(getSaleProfit(s)),
-              s.salesperson,
-              formatDateOnly(s.saleDate),
-            ])}
-            emptyMessage="No sales for selected period"
-          />
+              <ReportTable
+                headers={["Invoice", "Machine", "Qty", "Total", "Profit", "Salesperson", "Date"]}
+                rows={displaySalesReport.sales.map((s) => [
+                  s.invoiceNumber,
+                  s.machineName,
+                  s.quantity,
+                  formatCurrency(s.totalAmount),
+                  formatCurrency(getSaleProfit(s)),
+                  s.salesperson,
+                  formatDateOnly(s.saleDate),
+                ])}
+                emptyMessage="No sales for selected period"
+              />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="best-selling" className="space-y-4">

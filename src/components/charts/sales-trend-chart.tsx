@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import { useTheme } from "next-themes";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface SalesChartPoint {
@@ -40,9 +41,15 @@ interface SalesTrendChartProps {
   data: SalesChartPoint[];
   period: "daily" | "weekly" | "monthly";
   onPeriodChange: (period: "daily" | "weekly" | "monthly") => void;
+  isLoading?: boolean;
 }
 
-export function SalesTrendChart({ data, period, onPeriodChange }: SalesTrendChartProps) {
+export function SalesTrendChart({
+  data,
+  period,
+  onPeriodChange,
+  isLoading = false,
+}: SalesTrendChartProps) {
   const { resolvedTheme } = useTheme();
   const gridColor = resolvedTheme === "dark" ? "#1e293b" : "#e2e8f0";
   const textColor = resolvedTheme === "dark" ? "#94a3b8" : "#64748b";
@@ -66,8 +73,13 @@ export function SalesTrendChart({ data, period, onPeriodChange }: SalesTrendChar
           ))}
         </div>
       </CardHeader>
-      <CardContent className="px-2 pb-4 sm:px-6">
-        {data.every((point) => point.revenue === 0 && point.profit === 0) ? (
+      <CardContent className="relative px-2 pb-4 sm:px-6">
+        {isLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60">
+            <Loader2 className="h-6 w-6 animate-spin text-yellow-500" />
+          </div>
+        )}
+        {!isLoading && data.every((point) => point.revenue === 0 && point.profit === 0) ? (
           <p className="py-12 text-center text-sm text-muted-foreground">No sales data for this period</p>
         ) : (
           <div className="h-[260px] w-full sm:h-[300px]">

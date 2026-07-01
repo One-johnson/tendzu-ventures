@@ -44,6 +44,7 @@ interface DataTableProps<TData, TValue> {
   highlightRowId?: string | null;
   className?: string;
   hideToolbar?: boolean;
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -61,6 +62,7 @@ export function DataTable<TData, TValue>({
   highlightRowId,
   className,
   hideToolbar = false,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -222,8 +224,10 @@ export function DataTable<TData, TValue>({
                     key={row.id}
                     data-row-id={rowDomId}
                     data-state={row.getIsSelected() && "selected"}
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                     className={cn(
                       "transition-colors",
+                      onRowClick && "cursor-pointer hover:bg-muted/50",
                       isHighlighted && "bg-yellow-500/10 ring-2 ring-inset ring-yellow-500/40"
                     )}
                   >

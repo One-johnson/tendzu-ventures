@@ -6,6 +6,8 @@ export const APP_LOGO_PATH = "/tendzu-logo.png";
 export const APP_DESCRIPTION =
   "Heavy Equipment Inventory & Sales Management System";
 
+export const INVOICE_GENERATION_ENABLED = false;
+
 export const STOCK_STATUS_OPTIONS = [
   { value: "available", label: "Available" },
   { value: "low_stock", label: "Low Stock" },
