@@ -142,7 +142,7 @@ export function GlobalSearch({ className }: GlobalSearchProps) {
         kind: "machine",
         href: searchRoutes.machine(machine._id),
         label: machine.name,
-        meta: [machine.customId, machine.sku, machine.categoryName].filter(Boolean).join(" · "),
+        meta: [machine.partNumber, machine.categoryName].filter(Boolean).join(" · "),
         action: "Open machine",
       });
     }

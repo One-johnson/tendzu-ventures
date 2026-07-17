@@ -167,7 +167,7 @@ export default function SalesPage() {
       filteredMachines.map((machine) => ({
         value: machine._id,
         label: `${machine.name} — ${formatCurrency(machine.sellingPrice)} (${machine.quantity} available)`,
-        keywords: [machine.name, machine.sku, machine.customId, machine.category?.name]
+        keywords: [machine.name, machine.partNumber, machine.sku, machine.customId, machine.category?.name]
           .filter(Boolean)
           .join(" "),
       })),
@@ -280,9 +280,6 @@ export default function SalesPage() {
         salesperson,
         saleDate: fromInputDate(saleDate),
       });
-      toast.success(
-        `Sale recorded! Invoice: ${result.invoiceNumber} — ${formatCurrency(result.totalAmount)} (Profit: ${formatCurrency(result.totalProfit)})`
-      );
       setDialogOpen(false);
       resetForm();
       if (selectedMachine) {
@@ -518,7 +515,7 @@ export default function SalesPage() {
                     ? "No machines available in this category"
                     : "Search and choose a machine"
                 }
-                searchPlaceholder="Search by name, SKU, or ID..."
+                searchPlaceholder="Search by name, part number..."
                 emptyText="No machines match your search."
                 disabled={filteredMachines.length === 0}
               />

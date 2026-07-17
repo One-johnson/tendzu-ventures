@@ -48,7 +48,6 @@ export default function SettingsPage() {
         key: "default_low_stock_threshold",
         value: String(value),
       });
-      toast.success("Settings saved");
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Failed to save settings"));
     } finally {

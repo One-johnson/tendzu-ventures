@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -36,7 +37,7 @@ import { FadeIn } from "@/components/motion/page-wrapper";
 import { getFriendlyErrorMessage } from "@/lib/errors";
 import { formatCurrency } from "@/lib/format";
 import { getStockStatusColor, getStockStatusLabel } from "@/lib/stock";
-import { Plus, Search, Pencil, Trash2, Package, Layers } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Package, Layers, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { useDeepLinkParam } from "@/hooks/use-deep-link-param";
 import { useRowHighlight } from "@/hooks/use-row-highlight";
@@ -45,6 +46,7 @@ const emptyForm = {
   name: "",
   categoryId: "",
   description: "",
+  partNumber: "",
   costPrice: "",
   sellingPrice: "",
   quantity: "",
@@ -137,6 +139,7 @@ export default function InventoryPage() {
       name: machine.name,
       categoryId: machine.categoryId,
       description: machine.description ?? "",
+      partNumber: machine.partNumber ?? "",
       costPrice: String(machine.costPrice),
       sellingPrice: String(machine.sellingPrice),
       quantity: String(machine.quantity),
@@ -182,23 +185,21 @@ export default function InventoryPage() {
     setSaving(true);
     try {
       if (editingId) {
-        const machine = machines?.find((m) => m._id === editingId);
         await updateMachine({
           token,
           id: editingId,
           name: form.name,
           categoryId: form.categoryId as Id<"categories">,
           description: form.description || undefined,
+          partNumber: form.partNumber.trim() || undefined,
           costPrice: Number(form.costPrice),
           sellingPrice: Number(form.sellingPrice),
           lowStockThreshold: Number(form.lowStockThreshold),
           brand: form.brand || undefined,
           model: form.model || undefined,
           year: form.year ? Number(form.year) : undefined,
-          sku: machine?.sku ?? `TV-0000`,
           isActive: form.isActive,
         });
-        toast.success("Machine updated successfully");
       } else {
         const categoryId = (form.categoryId || categories?.[0]?._id) as Id<"categories"> | undefined;
         if (!categoryId) {
@@ -206,11 +207,12 @@ export default function InventoryPage() {
           return;
         }
 
-        const result = await createMachine({
+        await createMachine({
           token,
           name: form.name.trim() || "Untitled Machine",
           categoryId,
           description: form.description.trim() || undefined,
+          partNumber: form.partNumber.trim() || undefined,
           costPrice: parseOptionalNumber(form.costPrice, 0),
           sellingPrice: parseOptionalNumber(form.sellingPrice, 0),
           quantity: parseOptionalNumber(form.quantity, 0),
@@ -219,7 +221,6 @@ export default function InventoryPage() {
           model: form.model.trim() || undefined,
           year: form.year ? Number(form.year) : undefined,
         });
-        toast.success(`Machine added with ID ${result.customId}`);
       }
       setSheetOpen(false);
     } catch (error) {
@@ -233,7 +234,6 @@ export default function InventoryPage() {
     if (!token || !deleteId) return;
     try {
       await removeMachine({ token, id: deleteId });
-      toast.success("Machine deleted");
       setDeleteId(null);
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Failed to delete machine"));
@@ -260,18 +260,13 @@ export default function InventoryPage() {
         ),
       },
       {
-        accessorKey: "customId",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="ID" />,
+        accessorKey: "partNumber",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Part Number" />,
         cell: ({ row }) => (
           <span className="font-mono text-xs font-semibold text-yellow-500">
-            {row.original.customId ?? "—"}
+            {row.original.partNumber ?? "—"}
           </span>
         ),
-      },
-      {
-        accessorKey: "sku",
-        header: ({ column }) => <DataTableColumnHeader column={column} title="SKU" />,
-        cell: ({ row }) => <span className="font-mono text-xs">{row.original.sku}</span>,
       },
       {
         id: "category",
@@ -375,7 +370,7 @@ export default function InventoryPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by name, ID, SKU, brand..."
+            placeholder="Search by name, part number, brand..."
             className="h-10 pl-9 touch-manipulation"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -452,8 +447,7 @@ export default function InventoryPage() {
                   </Button>
                 </div>
               </div>
-              <MobileCardField label="ID" value={row.original.customId ?? "—"} />
-              <MobileCardField label="SKU" value={row.original.sku} />
+              <MobileCardField label="Part Number" value={row.original.partNumber ?? "—"} />
               <MobileCardField label="Category" value={getCellValue(row, "category")} />
               <MobileCardField label="Qty" value={row.original.quantity} />
               <MobileCardField label="Price" value={formatCurrency(row.original.sellingPrice)} />
@@ -469,8 +463,8 @@ export default function InventoryPage() {
         title={editingId ? "Edit Machine" : "Add New Machine"}
         description={
           editingId
-            ? "Update machine details. The custom ID cannot be changed."
-            : "A unique 4-digit custom ID and SKU will be generated automatically."
+            ? "Update machine details."
+            : "Enter machine details. Part number is optional."
         }
         footer={
           <>
@@ -481,6 +475,7 @@ export default function InventoryPage() {
               onClick={handleSave}
               disabled={
                 saving ||
+                (!editingId && categoryOptions.length === 0) ||
                 (!!editingId &&
                   (!form.name ||
                     !form.categoryId ||
@@ -494,14 +489,22 @@ export default function InventoryPage() {
         }
       >
         <div className="grid gap-4">
-          {editingId && (
-            <div className="grid gap-2">
-              <Label>Custom ID</Label>
-              <Input
-                value={machines.find((m) => m._id === editingId)?.customId ?? ""}
-                readOnly
-                className="bg-muted font-mono"
-              />
+          {!editingId && categoryOptions.length === 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+              <div className="flex gap-3">
+                <Tags className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1.5 text-sm">
+                  <p className="font-medium text-foreground">Create a category first</p>
+                  <p className="text-muted-foreground">
+                    Machines must belong to a category. Add one before creating a machine.
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-1" asChild>
+                    <Link href="/categories" onClick={() => setSheetOpen(false)}>
+                      Go to Categories
+                    </Link>
+                  </Button>
+                </div>
+              </div>
             </div>
           )}
           <div className="grid gap-2">
@@ -509,6 +512,14 @@ export default function InventoryPage() {
             <Input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Part Number</Label>
+            <Input
+              placeholder="Optional part number"
+              value={form.partNumber}
+              onChange={(e) => setForm({ ...form, partNumber: e.target.value })}
             />
           </div>
           <div className="grid gap-2">

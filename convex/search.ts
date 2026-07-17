@@ -51,8 +51,9 @@ export const global = query({
       if (machineIds.has(machine._id)) continue;
 
       const matches =
+        machine.partNumber?.toLowerCase().includes(lower) ||
         machine.customId?.includes(term) ||
-        machine.sku.toLowerCase().includes(lower) ||
+        machine.sku?.toLowerCase().includes(lower) ||
         machine.brand?.toLowerCase().includes(lower) ||
         machine.model?.toLowerCase().includes(lower);
 
@@ -65,8 +66,7 @@ export const global = query({
     const matchedMachines = machines.slice(0, limit).map((machine) => ({
       _id: machine._id,
       name: machine.name,
-      customId: machine.customId,
-      sku: machine.sku,
+      partNumber: machine.partNumber,
       categoryName: categoryMap.get(machine.categoryId) ?? null,
     }));
 

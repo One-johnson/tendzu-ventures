@@ -70,15 +70,18 @@ export function MachineDetailSheet({
           <SheetHeader className="space-y-1.5 p-0">
             <SheetTitle className="text-left">{machine.name}</SheetTitle>
             <SheetDescription className="text-left">
-              {machine.category?.name ?? "Uncategorized"} · {machine.customId ?? machine.sku}
+              {machine.category?.name ?? "Uncategorized"}
+              {machine.partNumber ? ` · ${machine.partNumber}` : ""}
             </SheetDescription>
           </SheetHeader>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
           <div className="rounded-lg border border-border bg-muted/30 px-4">
-            <DetailRow label="Custom ID" value={<span className="font-mono">{machine.customId ?? "—"}</span>} />
-            <DetailRow label="SKU" value={<span className="font-mono">{machine.sku}</span>} />
+            <DetailRow
+              label="Part Number"
+              value={<span className="font-mono">{machine.partNumber ?? "—"}</span>}
+            />
             <DetailRow label="Category" value={machine.category?.name ?? "—"} />
             <DetailRow label="Stock" value={`${machine.quantity} units`} />
             <DetailRow

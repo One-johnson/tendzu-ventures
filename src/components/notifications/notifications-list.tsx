@@ -40,6 +40,9 @@ function NotificationTypeBadge({ type }: { type: NotificationRecord["type"] }) {
     restock: "Restock",
     low_stock: "Low stock",
     out_of_stock: "Out of stock",
+    machine: "Machine",
+    category: "Category",
+    settings: "Settings",
   };
 
   return (

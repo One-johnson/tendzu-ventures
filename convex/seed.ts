@@ -26,11 +26,18 @@ export const seedDatabase = mutation({
       createdAt: Date.now(),
     });
 
-    await ctx.db.insert("settings", {
-      key: "default_low_stock_threshold",
-      value: "5",
-      updatedAt: Date.now(),
-    });
+    const existingThreshold = await ctx.db
+      .query("settings")
+      .withIndex("by_key", (q) => q.eq("key", "default_low_stock_threshold"))
+      .collect();
+
+    if (existingThreshold.length === 0) {
+      await ctx.db.insert("settings", {
+        key: "default_low_stock_threshold",
+        value: "5",
+        updatedAt: Date.now(),
+      });
+    }
 
     return {
       message: "Database seeded successfully.",

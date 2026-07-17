@@ -56,7 +56,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: '[data-tour="inventory-header"]',
     title: "Machine Inventory",
     description:
-      "Browse your equipment catalog, filter by category or stock status, and search by name, custom ID, SKU, brand, or model.",
+      "Browse your equipment catalog, filter by category or stock status, and search by name, part number, brand, or model.",
     placement: "bottom",
   },
   {
@@ -65,7 +65,7 @@ export const TOUR_STEPS: TourStep[] = [
     target: '[data-tour="add-machine"]',
     title: "Add & Edit Machines",
     description:
-      "Add machines from the slide-over sheet. Each new machine gets a unique 4-digit custom ID and auto-generated SKU automatically.",
+      "Add machines from the slide-over sheet. You can optionally enter a part number for each machine.",
     placement: "left",
   },
   {

@@ -102,14 +102,12 @@ export default function CategoriesPage() {
           name: form.name,
           description: form.description || undefined,
         });
-        toast.success("Category updated");
       } else {
         await createCategory({
           token,
           name: form.name,
           description: form.description || undefined,
         });
-        toast.success("Category created");
       }
       setSheetOpen(false);
     } catch (error) {
@@ -123,7 +121,6 @@ export default function CategoriesPage() {
     if (!token || !deleteId) return;
     try {
       await removeCategory({ token, id: deleteId });
-      toast.success("Category deleted");
       setDeleteId(null);
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Failed to delete category"));

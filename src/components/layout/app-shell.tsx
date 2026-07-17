@@ -29,6 +29,7 @@ import { AppTour } from "@/components/tour/app-tour";
 import { startAppTour } from "@/lib/tour-steps";
 import { CredentialPromptBanner } from "@/components/auth/credential-prompt-banner";
 import { ConfirmLogoutDialog } from "@/components/auth/confirm-logout-dialog";
+import { SystemActivityToaster } from "@/components/notifications/system-activity-toaster";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
@@ -159,6 +160,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </SidebarInset>
 
       <NotificationsSheet open={notificationsOpen} onOpenChange={setNotificationsOpen} />
+
+      <SystemActivityToaster />
 
       <ConfirmLogoutDialog
         open={logoutOpen}
