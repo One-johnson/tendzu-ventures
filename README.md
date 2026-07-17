@@ -9,18 +9,39 @@ Heavy Equipment Inventory & Sales Management System for a Ghanaian company selli
 - **Tailwind CSS v4**
 - **ShadCN UI** (custom components)
 - **Convex** (database & backend)
-- **Custom Authentication** (admin-only)
+- **Custom Authentication** (admin-only today; manager + branch roles planned)
 - **Vercel** (deployment)
 
-## Features
+## Features (current)
 
 - Dashboard with inventory metrics, revenue, profit, and charts
 - Machine inventory with detail view, CRUD, search, and stock status
+- Optional **part number** on machines (no auto-generated ID/SKU)
+- Categories for organizing machines
 - Stock restocking with history tracking
-- Sales hub with profit tracking, charts, history, and invoice PDF download
-- Business reports with PDF & Excel export (including profit)
+- Sales hub with profit tracking, charts, and transaction history
+- Business reports with Excel export (and PDF where enabled)
 - In-app notifications for sales, restocking, and stock alerts
 - Account settings (`/account`) and app settings (`/settings`)
+- Logout confirmation with loading state
+
+**Notes**
+
+- Invoice **numbers** are still assigned on sales (`TV-YYYY-NNNNN`); invoice **PDF download** is currently disabled (`INVOICE_GENERATION_ENABLED` in `src/lib/constants.ts`).
+- The app is a **single shared workspace** today: one stock pool, one sales/reports stream, one admin role.
+
+## Planned — Multi-branch
+
+Not implemented yet. Intended for later so one company can run multiple branches in the same app:
+
+- **Manager** — oversees all branches; maintains the shared machine catalog; restocks a central **warehouse**; **assigns** stock quantities to each branch; views company-wide sales and reports
+- **Branch administrator** — one per branch; sells from that branch’s stock only; sees restock history when stock is assigned to their branch; cannot see other branches or the warehouse
+- **Stock flow**
+  1. Manager restocks warehouse (e.g. +500 units of a machine)
+  2. Manager allocates units to branches (e.g. 200 / 300)
+  3. Warehouse stock decreases; each branch’s stock increases
+  4. A **restock record** is created for each receiving branch
+  5. Branch admins sell from branch stock only
 
 ## Getting Started
 
@@ -108,6 +129,7 @@ npx convex run seed:backfillSaleProfit --prod
 │   ├── components/   # UI components, layout, providers
 │   ├── lib/          # Utilities, formatters, export helpers
 │   └── types/        # TypeScript types
+├── src/proxy.ts      # Auth redirects (Next.js proxy)
 ```
 
 ## Business Rules
@@ -117,6 +139,7 @@ npx convex run seed:backfillSaleProfit --prod
 - Revenue and profit are calculated from selling price and cost price
 - Invoice numbers follow format `TV-YYYY-NNNNN`
 - Low stock alerts trigger when quantity ≤ configurable threshold
+- Part number is optional and entered manually when adding or editing a machine
 
 ## License
 

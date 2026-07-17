@@ -32,6 +32,12 @@ export function getNotificationIcon(type: string): string {
       return "AlertTriangle";
     case "out_of_stock":
       return "PackageX";
+    case "machine":
+      return "Package";
+    case "category":
+      return "Tags";
+    case "settings":
+      return "Settings";
     default:
       return "Bell";
   }

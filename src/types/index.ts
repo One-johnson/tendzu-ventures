@@ -74,7 +74,14 @@ export interface Category {
 
 export interface NotificationRecord {
   _id: string;
-  type: "sale" | "restock" | "low_stock" | "out_of_stock";
+  type:
+    | "sale"
+    | "restock"
+    | "low_stock"
+    | "out_of_stock"
+    | "machine"
+    | "category"
+    | "settings";
   title: string;
   message: string;
   isRead: boolean;
@@ -87,7 +94,8 @@ export interface MachineWithMeta {
   name: string;
   categoryId: string;
   description?: string;
-  sku: string;
+  sku?: string;
+  partNumber?: string;
   costPrice: number;
   sellingPrice: number;
   quantity: number;

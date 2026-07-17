@@ -67,7 +67,7 @@ export default function RestockingPage() {
       filteredMachines.map((machine) => ({
         value: machine._id,
         label: `${machine.name} (Current: ${machine.quantity})`,
-        keywords: [machine.name, machine.sku, machine.customId, machine.category?.name]
+        keywords: [machine.name, machine.partNumber, machine.sku, machine.customId, machine.category?.name]
           .filter(Boolean)
           .join(" "),
       })),
@@ -142,15 +142,12 @@ export default function RestockingPage() {
     if (!token || !machineId || !quantityAdded) return;
     setSaving(true);
     try {
-      const result = await restock({
+      await restock({
         token,
         machineId: machineId as Id<"machines">,
         quantityAdded: Number(quantityAdded),
         notes: notes || undefined,
       });
-      toast.success(
-        `Restocked successfully. Stock updated from ${result.previousQuantity} to ${result.newQuantity}.`
-      );
       setDialogOpen(false);
       resetForm();
     } catch (error) {
@@ -244,7 +241,7 @@ export default function RestockingPage() {
                     ? "No machines in this category"
                     : "Search and choose a machine"
                 }
-                searchPlaceholder="Search by name, SKU, or ID..."
+                searchPlaceholder="Search by name, part number..."
                 emptyText="No machines match your search."
                 disabled={filteredMachines.length === 0}
               />

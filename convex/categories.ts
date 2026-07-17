@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { canDelete, canWrite, requireAuth } from "./lib/auth";
+import { createNotification } from "./lib/notifications";
 
 function slugify(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, "-");
@@ -48,12 +49,21 @@ export const create = mutation({
 
     if (existing) throw new ConvexError("A category with this name already exists.");
 
-    return await ctx.db.insert("categories", {
+    const id = await ctx.db.insert("categories", {
       name,
       slug,
       description: args.description?.trim() || undefined,
       createdAt: Date.now(),
     });
+
+    await createNotification(ctx, {
+      type: "category",
+      title: "Category created",
+      message: `${name} was added to categories.`,
+      userId: user._id,
+    });
+
+    return id;
   },
 });
 
@@ -90,6 +100,13 @@ export const update = mutation({
       slug,
       description: args.description?.trim() || undefined,
     });
+
+    await createNotification(ctx, {
+      type: "category",
+      title: "Category updated",
+      message: `${name} was updated.`,
+      userId: user._id,
+    });
   },
 });
 
@@ -117,6 +134,13 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(args.id);
+
+    await createNotification(ctx, {
+      type: "category",
+      title: "Category deleted",
+      message: `${category.name} was removed.`,
+      userId: user._id,
+    });
   },
 });
 

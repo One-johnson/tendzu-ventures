@@ -7,7 +7,10 @@ export const notificationType = v.union(
   v.literal("sale"),
   v.literal("restock"),
   v.literal("low_stock"),
-  v.literal("out_of_stock")
+  v.literal("out_of_stock"),
+  v.literal("machine"),
+  v.literal("category"),
+  v.literal("settings")
 );
 
 export default defineSchema({
@@ -47,7 +50,8 @@ export default defineSchema({
     name: v.string(),
     categoryId: v.id("categories"),
     description: v.optional(v.string()),
-    sku: v.string(),
+    sku: v.optional(v.string()),
+    partNumber: v.optional(v.string()),
     costPrice: v.number(),
     sellingPrice: v.number(),
     quantity: v.number(),
@@ -62,6 +66,7 @@ export default defineSchema({
     .index("by_category", ["categoryId"])
     .index("by_customId", ["customId"])
     .index("by_sku", ["sku"])
+    .index("by_partNumber", ["partNumber"])
     .index("by_quantity", ["quantity"])
     .searchIndex("search_machines", {
       searchField: "name",

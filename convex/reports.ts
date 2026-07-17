@@ -47,9 +47,8 @@ export const inventoryReport = query({
     const categoryMap = new Map(categories.map((c) => [c._id, c.name]));
 
     return machines.map((m) => ({
-      customId: m.customId ?? "—",
+      partNumber: m.partNumber ?? "—",
       name: m.name,
-      sku: m.sku,
       category: categoryMap.get(m.categoryId) ?? "Unknown",
       quantity: m.quantity,
       costPrice: m.costPrice,
@@ -72,9 +71,8 @@ export const lowStockReport = query({
     return machines
       .filter((m) => getStockStatus(m.quantity, m.lowStockThreshold) === "low_stock")
       .map((m) => ({
-        customId: m.customId ?? "—",
+        partNumber: m.partNumber ?? "—",
         name: m.name,
-        sku: m.sku,
         category: categoryMap.get(m.categoryId) ?? "Unknown",
         quantity: m.quantity,
         threshold: m.lowStockThreshold,
@@ -94,9 +92,8 @@ export const outOfStockReport = query({
     return machines
       .filter((m) => m.quantity <= 0)
       .map((m) => ({
-        customId: m.customId ?? "—",
+        partNumber: m.partNumber ?? "—",
         name: m.name,
-        sku: m.sku,
         category: categoryMap.get(m.categoryId) ?? "Unknown",
         sellingPrice: m.sellingPrice,
         lastUpdated: m.updatedAt,

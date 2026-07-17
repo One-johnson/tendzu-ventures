@@ -23,6 +23,7 @@ import { toast } from "sonner";
 type BulkRow = {
   key: string;
   name: string;
+  partNumber: string;
   brand: string;
   model: string;
   costPrice: string;
@@ -35,6 +36,7 @@ function createRow(): BulkRow {
   return {
     key: crypto.randomUUID(),
     name: "",
+    partNumber: "",
     brand: "",
     model: "",
     costPrice: "",
@@ -111,12 +113,13 @@ export function BulkAddMachinesSheet({
 
     setSaving(true);
     try {
-      const result = await bulkCreate({
+      await bulkCreate({
         token,
         categoryId: categoryId as Id<"categories">,
         lowStockThreshold: Number(lowStockThreshold || "5"),
         machines: validRows.map((row) => ({
           name: row.name.trim(),
+          partNumber: row.partNumber.trim() || undefined,
           costPrice: Number(row.costPrice),
           sellingPrice: Number(row.sellingPrice),
           quantity: Number(row.quantity),
@@ -126,7 +129,6 @@ export function BulkAddMachinesSheet({
         })),
       });
 
-      toast.success(`Added ${result.count} machines`);
       onOpenChange(false);
     } catch (error) {
       toast.error(getFriendlyErrorMessage(error, "Failed to add machines"));
@@ -140,7 +142,7 @@ export function BulkAddMachinesSheet({
       open={open}
       onOpenChange={onOpenChange}
       title="Bulk Add Machines"
-      description="Add multiple machines under one category. Each row gets its own custom ID and SKU."
+      description="Add multiple machines under one category. Part number is optional for each row."
       className="sm:max-w-2xl"
       footer={
         <>
@@ -220,6 +222,15 @@ export function BulkAddMachinesSheet({
                       placeholder="e.g. CAT 320 Excavator"
                       value={row.name}
                       onChange={(e) => updateRow(row.key, { name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Part Number</Label>
+                    <Input
+                      placeholder="Optional"
+                      value={row.partNumber}
+                      onChange={(e) => updateRow(row.key, { partNumber: e.target.value })}
                     />
                   </div>
 

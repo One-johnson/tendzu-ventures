@@ -24,6 +24,7 @@ import { exportToPDF, exportToExcel } from "@/lib/export";
 import { getSaleProfit } from "@/lib/sales";
 import type { SaleRecord, StockStatus } from "@/types";
 import { FileDown, FileSpreadsheet, FileBarChart, Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { RevenueComparisonChart } from "@/components/charts/dashboard-charts";
 import { FadeIn } from "@/components/motion/page-wrapper";
 import { useStickyQueryResult } from "@/hooks/use-sticky-query-result";
@@ -50,9 +51,8 @@ interface ExportAction {
 }
 
 interface InventoryReportRow {
-  customId: string;
+  partNumber: string;
   name: string;
-  sku: string;
   category: string;
   quantity: number;
   costPrice: number;
@@ -63,9 +63,8 @@ interface InventoryReportRow {
 }
 
 interface StockAlertRow {
-  customId: string;
+  partNumber: string;
   name: string;
-  sku: string;
   category: string;
   quantity: number;
   threshold?: number;
@@ -144,12 +143,17 @@ export default function ReportsPage() {
     rows: Array<object>,
     filename: string
   ) => {
-    if (type === "pdf") {
-      await exportToPDF(title, columns, rows, filename);
-    } else {
-      exportToExcel(title, columns, rows, filename);
+    try {
+      if (type === "pdf") {
+        await exportToPDF(title, columns, rows, filename);
+      } else {
+        exportToExcel(title, columns, rows, filename);
+      }
+      toast.success(`${type === "pdf" ? "PDF" : "Excel"} export downloaded`);
+      setExportSheetOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed");
     }
-    setExportSheetOpen(false);
   };
 
   const exportActionsForTab = (): ExportAction[] => {
@@ -161,9 +165,8 @@ export default function ReportsPage() {
             type: "excel",
             title: "Inventory",
             columns: [
-              { header: "ID", key: "customId" },
+              { header: "Part Number", key: "partNumber" },
               { header: "Name", key: "name" },
-              { header: "SKU", key: "sku" },
               { header: "Category", key: "category" },
               { header: "Quantity", key: "quantity" },
               { header: "Cost Price", key: "costPrice" },
@@ -186,9 +189,8 @@ export default function ReportsPage() {
             type: "pdf",
             title: "Out of Stock Report",
             columns: [
-              { header: "ID", key: "customId" },
+              { header: "Part Number", key: "partNumber" },
               { header: "Name", key: "name" },
-              { header: "SKU", key: "sku" },
               { header: "Category", key: "category" },
               { header: "Price", key: "sellingPrice" },
             ],
@@ -353,9 +355,8 @@ export default function ReportsPage() {
                   "excel",
                   "Inventory",
                   [
-                    { header: "ID", key: "customId" },
+                    { header: "Part Number", key: "partNumber" },
                     { header: "Name", key: "name" },
-                    { header: "SKU", key: "sku" },
                     { header: "Category", key: "category" },
                     { header: "Quantity", key: "quantity" },
                     { header: "Cost Price", key: "costPrice" },
@@ -374,11 +375,10 @@ export default function ReportsPage() {
             </Button>
           </div>
           <ReportTable
-            headers={["ID", "Name", "SKU", "Category", "Qty", "Cost", "Price", "Status"]}
+            headers={["Part Number", "Name", "Category", "Qty", "Cost", "Price", "Status"]}
             rows={inventory.map((r) => [
-              r.customId,
+              r.partNumber,
               r.name,
-              r.sku,
               r.category,
               r.quantity,
               formatCurrency(r.costPrice),
@@ -391,11 +391,10 @@ export default function ReportsPage() {
 
         <TabsContent value="low-stock" className="space-y-4">
           <ReportTable
-            headers={["ID", "Name", "SKU", "Category", "Qty", "Threshold", "Price"]}
+            headers={["Part Number", "Name", "Category", "Qty", "Threshold", "Price"]}
             rows={lowStock.map((r) => [
-              r.customId,
+              r.partNumber,
               r.name,
-              r.sku,
               r.category,
               r.quantity,
               r.threshold ?? "—",
@@ -407,11 +406,10 @@ export default function ReportsPage() {
 
         <TabsContent value="out-of-stock" className="space-y-4">
           <ReportTable
-            headers={["ID", "Name", "SKU", "Category", "Price", "Last Updated"]}
+            headers={["Part Number", "Name", "Category", "Price", "Last Updated"]}
             rows={outOfStock.map((r) => [
-              r.customId,
+              r.partNumber,
               r.name,
-              r.sku,
               r.category,
               formatCurrency(r.sellingPrice),
               formatDateOnly(r.lastUpdated ?? 0),

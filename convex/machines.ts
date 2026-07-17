@@ -3,13 +3,13 @@ import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { canDelete, canWrite, requireAuth } from "./lib/auth";
-import { generateUniqueCustomId } from "./lib/customId";
 import { createNotification } from "./lib/notifications";
 import { getStockStatus } from "./lib/stock";
 
 const bulkMachineInput = v.object({
   name: v.string(),
   description: v.optional(v.string()),
+  partNumber: v.optional(v.string()),
   costPrice: v.number(),
   sellingPrice: v.number(),
   quantity: v.number(),
@@ -25,6 +25,7 @@ async function insertMachine(
     name: string;
     categoryId: Id<"categories">;
     description?: string;
+    partNumber?: string;
     costPrice: number;
     sellingPrice: number;
     quantity: number;
@@ -32,18 +33,18 @@ async function insertMachine(
     brand?: string;
     model?: string;
     year?: number;
-  }
+  },
+  options?: { notifyCreate?: boolean }
 ) {
-  const customId = await generateUniqueCustomId(ctx);
-  const sku = `TV-${customId}`;
   const now = Date.now();
+  const partNumber = args.partNumber?.trim() || undefined;
+  const name = args.name.trim();
 
   const id = await ctx.db.insert("machines", {
-    customId,
-    name: args.name.trim(),
+    name,
     categoryId: args.categoryId,
     description: args.description?.trim(),
-    sku,
+    partNumber,
     costPrice: args.costPrice,
     sellingPrice: args.sellingPrice,
     quantity: args.quantity,
@@ -56,24 +57,33 @@ async function insertMachine(
     updatedAt: now,
   });
 
+  if (options?.notifyCreate !== false) {
+    await createNotification(ctx, {
+      type: "machine",
+      title: "Machine added",
+      message: `${name} was added to inventory.`,
+      userId: user._id,
+    });
+  }
+
   const status = getStockStatus(args.quantity, args.lowStockThreshold);
   if (status === "low_stock") {
     await createNotification(ctx, {
       type: "low_stock",
       title: "Low Stock Alert",
-      message: `${args.name.trim()} is at low stock (${args.quantity} units).`,
+      message: `${name} is at low stock (${args.quantity} units).`,
       userId: user._id,
     });
   } else if (status === "out_of_stock") {
     await createNotification(ctx, {
       type: "out_of_stock",
       title: "Out of Stock Alert",
-      message: `${args.name.trim()} is out of stock.`,
+      message: `${name} is out of stock.`,
       userId: user._id,
     });
   }
 
-  return { id, customId, name: args.name.trim() };
+  return { id, name, partNumber };
 }
 
 export const list = query({
@@ -103,8 +113,9 @@ export const list = query({
       machines = machines.filter(
         (m) =>
           m.name.toLowerCase().includes(term) ||
+          m.partNumber?.toLowerCase().includes(term) ||
           m.customId?.includes(term) ||
-          m.sku.toLowerCase().includes(term) ||
+          m.sku?.toLowerCase().includes(term) ||
           m.brand?.toLowerCase().includes(term) ||
           m.model?.toLowerCase().includes(term)
       );
@@ -155,6 +166,7 @@ export const create = mutation({
     name: v.string(),
     categoryId: v.id("categories"),
     description: v.optional(v.string()),
+    partNumber: v.optional(v.string()),
     costPrice: v.number(),
     sellingPrice: v.number(),
     quantity: v.number(),
@@ -176,6 +188,7 @@ export const create = mutation({
       name: args.name,
       categoryId: args.categoryId,
       description: args.description,
+      partNumber: args.partNumber,
       costPrice: args.costPrice,
       sellingPrice: args.sellingPrice,
       quantity: args.quantity,
@@ -224,21 +237,34 @@ export const bulkCreate = mutation({
         throw new Error("Prices cannot be negative.");
       }
 
-      const result = await insertMachine(ctx, user, {
-        name,
-        categoryId: args.categoryId,
-        description: machine.description,
-        costPrice: machine.costPrice,
-        sellingPrice: machine.sellingPrice,
-        quantity: machine.quantity,
-        lowStockThreshold: args.lowStockThreshold,
-        brand: machine.brand,
-        model: machine.model,
-        year: machine.year,
-      });
+      const result = await insertMachine(
+        ctx,
+        user,
+        {
+          name,
+          categoryId: args.categoryId,
+          description: machine.description,
+          partNumber: machine.partNumber,
+          costPrice: machine.costPrice,
+          sellingPrice: machine.sellingPrice,
+          quantity: machine.quantity,
+          lowStockThreshold: args.lowStockThreshold,
+          brand: machine.brand,
+          model: machine.model,
+          year: machine.year,
+        },
+        { notifyCreate: false }
+      );
 
       created.push(result);
     }
+
+    await createNotification(ctx, {
+      type: "machine",
+      title: "Machines added",
+      message: `${created.length} machine${created.length === 1 ? "" : "s"} added via bulk add.`,
+      userId: user._id,
+    });
 
     return { created, count: created.length };
   },
@@ -251,7 +277,7 @@ export const update = mutation({
     name: v.string(),
     categoryId: v.id("categories"),
     description: v.optional(v.string()),
-    sku: v.string(),
+    partNumber: v.optional(v.string()),
     costPrice: v.number(),
     sellingPrice: v.number(),
     lowStockThreshold: v.number(),
@@ -267,21 +293,11 @@ export const update = mutation({
     const machine = await ctx.db.get(args.id);
     if (!machine) throw new Error("Machine not found.");
 
-    const sku = args.sku.trim().toUpperCase();
-    const existing = await ctx.db
-      .query("machines")
-      .withIndex("by_sku", (q) => q.eq("sku", sku))
-      .unique();
-
-    if (existing && existing._id !== args.id) {
-      throw new Error("A machine with this SKU already exists.");
-    }
-
     await ctx.db.patch(args.id, {
       name: args.name.trim(),
       categoryId: args.categoryId,
       description: args.description?.trim(),
-      sku,
+      partNumber: args.partNumber?.trim() || undefined,
       costPrice: args.costPrice,
       sellingPrice: args.sellingPrice,
       lowStockThreshold: args.lowStockThreshold,
@@ -294,6 +310,13 @@ export const update = mutation({
 
     const updated = await ctx.db.get(args.id);
     if (!updated) return;
+
+    await createNotification(ctx, {
+      type: "machine",
+      title: "Machine updated",
+      message: `${updated.name} details were updated.`,
+      userId: user._id,
+    });
 
     const status = getStockStatus(updated.quantity, updated.lowStockThreshold);
     if (status === "low_stock") {
@@ -334,7 +357,17 @@ export const remove = mutation({
       );
     }
 
+    const machine = await ctx.db.get(args.id);
+    const machineName = machine?.name ?? "Machine";
+
     await ctx.db.delete(args.id);
+
+    await createNotification(ctx, {
+      type: "machine",
+      title: "Machine deleted",
+      message: `${machineName} was removed from inventory.`,
+      userId: user._id,
+    });
   },
 });
 

@@ -191,7 +191,7 @@ export const create = mutation({
     await createNotification(ctx, {
       type: "sale",
       title: "Sale Recorded",
-      message: `Invoice ${invoiceNumber}: ${args.quantity} x ${machine.name} sold for GHS ${totalAmount.toLocaleString()}.`,
+      message: `Invoice ${invoiceNumber}: ${args.quantity} x ${machine.name} sold for GHS ${totalAmount.toLocaleString()} (Profit: GHS ${totalProfit.toLocaleString()}).`,
       userId: user._id,
       metadata: JSON.stringify({ saleId, invoiceNumber }),
     });
