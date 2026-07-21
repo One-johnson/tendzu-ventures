@@ -14,6 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -267,6 +272,30 @@ export default function InventoryPage() {
             {row.original.partNumber ?? "—"}
           </span>
         ),
+      },
+      {
+        accessorKey: "description",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
+        cell: ({ row }) =>
+          row.original.description ? (
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <p
+                  tabIndex={0}
+                  className="line-clamp-2 max-w-[20rem] cursor-help whitespace-normal break-words text-sm text-muted-foreground"
+                >
+                  {row.original.description}
+                </p>
+              </HoverCardTrigger>
+              <HoverCardContent align="start">
+                <p className="whitespace-normal break-words text-sm leading-relaxed">
+                  {row.original.description}
+                </p>
+              </HoverCardContent>
+            </HoverCard>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
       {
         id: "category",

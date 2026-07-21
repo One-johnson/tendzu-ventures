@@ -47,48 +47,6 @@ export const seedDatabase = mutation({
   },
 });
 
-export const clearCatalogData = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const sales = await ctx.db.query("sales").collect();
-    for (const sale of sales) await ctx.db.delete(sale._id);
-
-    const restocking = await ctx.db.query("restocking").collect();
-    for (const entry of restocking) await ctx.db.delete(entry._id);
-
-    const machines = await ctx.db.query("machines").collect();
-    for (const machine of machines) await ctx.db.delete(machine._id);
-
-    const categories = await ctx.db.query("categories").collect();
-    for (const category of categories) await ctx.db.delete(category._id);
-
-    const notifications = await ctx.db.query("notifications").collect();
-    let clearedNotifications = 0;
-    for (const notification of notifications) {
-      if (
-        notification.type === "sale" ||
-        notification.type === "restock" ||
-        notification.type === "low_stock" ||
-        notification.type === "out_of_stock"
-      ) {
-        await ctx.db.delete(notification._id);
-        clearedNotifications++;
-      }
-    }
-
-    return {
-      message: "Catalog data cleared.",
-      deleted: {
-        sales: sales.length,
-        restocking: restocking.length,
-        machines: machines.length,
-        categories: categories.length,
-        notifications: clearedNotifications,
-      },
-    };
-  },
-});
-
 export const migrateToAdminOnly = mutation({
   args: {},
   handler: async (ctx) => {
