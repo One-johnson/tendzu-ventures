@@ -12,6 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { ResponsiveFormPanel } from "@/components/ui/responsive-form-panel";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { PageLoader } from "@/components/shared/page-loader";
@@ -133,14 +138,31 @@ export default function CategoriesPage() {
       {
         accessorKey: "name",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
-        cell: ({ row }) => (
-          <div>
-            <p className="font-medium">{row.original.name}</p>
-            {row.original.description && (
-              <p className="text-xs text-muted-foreground">{row.original.description}</p>
-            )}
-          </div>
-        ),
+        cell: ({ row }) => <p className="font-medium">{row.original.name}</p>,
+      },
+      {
+        accessorKey: "description",
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
+        cell: ({ row }) =>
+          row.original.description ? (
+            <HoverCard>
+              <HoverCardTrigger asChild>
+                <p
+                  tabIndex={0}
+                  className="line-clamp-2 max-w-[18rem] cursor-help whitespace-normal break-words text-sm text-muted-foreground"
+                >
+                  {row.original.description}
+                </p>
+              </HoverCardTrigger>
+              <HoverCardContent align="start">
+                <p className="whitespace-normal break-words text-sm leading-relaxed">
+                  {row.original.description}
+                </p>
+              </HoverCardContent>
+            </HoverCard>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
       {
         accessorKey: "machineCount",
